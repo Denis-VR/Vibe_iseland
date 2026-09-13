@@ -1,15 +1,19 @@
 "use client";
-import Link from "next/link";
+import { DisplaySettings, useDisplay, fullscreenElement, toggleFullscreen } from "./display";
+import { newId } from "./id";
+import { LocalWeatherPicker, useLocalWeather } from "./local-weather";
+import { Landscape } from "./landscape";
+import { NoiseMixer, useNoiseMixer } from "./noise-mixer";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   Mountain,
   Headphones,
-  Route,
   Play,
   Pause,
   Maximize,
   Minimize,
   Sun,
+  Sunrise,
   Moon,
   CloudRain,
   CloudFog,
@@ -18,19 +22,19 @@ import {
   SkipForward,
   Music2,
   Plus,
-  Check,
-  ArrowUpRight,
+  X,
+  Snowflake,
+  Flower2,
+  Leaf,
   EyeOff,
   Shuffle,
   Repeat,
-  Upload,
   ArrowUp,
   ArrowDown,
   Trash2,
   Timer,
   ChevronRight,
 } from "lucide-react";
-import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   Sheet,
   SheetContent,
@@ -39,12 +43,14 @@ import {
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Slider } from "./volume-slider";
-import { initialState, builtins, type StudyState } from "./course";
+import { initialState, builtins, type LibraryState } from "./library";
 import {
   weatherOrder,
   nextWeather,
-  atlasStops,
   scheduleWeather,
+  validWeatherMinutes,
+  validFocusMinutes,
+  focusTime,
 } from "./world";
 
 type Track = { id: string; name: string; url?: string; subtitle?: string };
@@ -55,54 +61,50 @@ export default function Sanctuary() {
   const [autoWeather, setAutoWeather] = useState(false),
     [weatherMinutes, setWeatherMinutes] = useState(10),
     [prefsLoaded, setPrefsLoaded] = useState(false);
-  const [mode, setMode] = useState("landscape"),
-    [weather, setWeather] = useState("sunset"),
+  const [weather, setWeather] = useState("sunset"),
     [zen, setZen] = useState(false),
     [full, setFull] = useState(false);
+  const [settingsSection, setSettingsSection] = useState("scene");
   const [panel, setPanel] = useState<"music" | "atmosphere" | null>(null);
-  const [state, setState] = useState<StudyState>(initialState),
+  const [state, setState] = useState<LibraryState>(initialState),
     [revision, setRevision] = useState(0),
     [ready, setReady] = useState(false),
     [saving, setSaving] = useState(false),
-    [auth, setAuth] = useState(false),
     [message, setMessage] = useState("");
   const [tracks, setTracks] = useState<Track[]>([]),
     [playlist, setPlaylist] = useState("ambient"),
     [track, setTrack] = useState<Track>(builtins[0]),
     [playing, setPlaying] = useState(false),
     [volume, setVolume] = useState(55),
-    [nature, setNature] = useState(0),
+    [noiseStop, setNoiseStop] = useState(0),
     [elapsed, setElapsed] = useState(0),
     [duration, setDuration] = useState(0),
-    [shuffle, setShuffle] = useState(false),
-    [repeat, setRepeat] = useState(true);
+    [shuffle, setShuffle] = useState(true),
+    [repeat, setRepeat] = useState(false);
   const [newList, setNewList] = useState(""),
-    [uploading, setUploading] = useState(false),
     [remaining, setRemaining] = useState<number | null>(null),
     [timerLength, setTimerLength] = useState(25),
     [timerRunning, setTimerRunning] = useState(false);
   const audio = useRef<HTMLAudioElement>(null),
-    rain = useRef<HTMLAudioElement>(null),
     timerEnd = useRef(0),
     busy = useRef(false);
   const allTracks = [...builtins, ...tracks],
     currentList = state.playlists.find((p) => p.id === playlist),
     queue =
       playlist === "ambient"
-        ? builtins
+        ? allTracks
         : (currentList?.tracks
             .map((id) => allTracks.find((t) => t.id === id))
             .filter(Boolean) as Track[]) || [];
   const notify = useCallback((s: string) => setMessage(s), []);
+  const display = useDisplay();
+  const localWeather = useLocalWeather(setWeather);
+  const mixer = useNoiseMixer({ stopSignal: noiseStop, notify });
   const load = useCallback(async () => {
     try {
       const r = await fetch("/api/state");
-      if (r.status === 401) {
-        setAuth(true);
-        return;
-      }
       const d = (await r.json()) as {
-        state: StudyState;
+        state: LibraryState;
         revision: number;
         error?: string;
       };
@@ -114,12 +116,13 @@ export default function Sanctuary() {
       if (!tr.ok) throw Error(td.error);
       setTracks(td);
       setReady(true);
-      setAuth(false);
     } catch (e) {
       notify((e as Error).message);
     }
   }, [notify]);
   function chooseWeather(value: string) {
+    localWeather.disable();
+    localWeather.resetSeason();
     setWeather(value);
     setAutoWeather(false);
   }
@@ -132,7 +135,7 @@ export default function Sanctuary() {
         if (saved) {
           if (weatherOrder.includes(saved.weather)) setWeather(saved.weather);
           setAutoWeather(saved.auto === true);
-          if ([10, 20, 30].includes(saved.minutes))
+          if (validWeatherMinutes(saved.minutes))
             setWeatherMinutes(saved.minutes);
         }
       } catch {}
@@ -149,11 +152,11 @@ export default function Sanctuary() {
     } catch {}
   }, [weather, autoWeather, weatherMinutes, prefsLoaded]);
   useEffect(() => {
-    if (!autoWeather || !prefsLoaded) return;
+    if (!autoWeather || !prefsLoaded || localWeather.enabled) return;
     return scheduleWeather(weatherMinutes, () =>
       setWeather((current) => nextWeather(current)),
     );
-  }, [autoWeather, weatherMinutes, prefsLoaded]);
+  }, [autoWeather, weatherMinutes, prefsLoaded, localWeather.enabled]);
   useEffect(() => {
     void Promise.resolve().then(load);
   }, [load]);
@@ -162,9 +165,9 @@ export default function Sanctuary() {
     const t = setTimeout(() => setMessage(""), 9000);
     return () => clearTimeout(t);
   }, [message]);
-  async function save(next: StudyState) {
+  async function save(next: LibraryState) {
     if (!ready) {
-      notify("Войди и дождись загрузки, чтобы сохранить изменения.");
+      notify("Дождись загрузки библиотеки, чтобы сохранить изменения.");
       return false;
     }
     if (busy.current) return false;
@@ -241,32 +244,25 @@ export default function Sanctuary() {
     if (audio.current) audio.current.volume = volume / 100;
   }, [volume]);
   useEffect(() => {
-    const el = rain.current;
-    if (!el) return;
-    el.volume = nature / 100;
-    if (nature)
-      void el.play().catch(() => {
-        setNature(0);
-        notify("Нажми на громкость природы ещё раз, чтобы разрешить звук.");
-      });
-    else el.pause();
-  }, [nature, notify]);
-  useEffect(() => {
     function fullChanged() {
-      setFull(!!document.fullscreenElement);
+      setFull(!!fullscreenElement());
     }
-    document.addEventListener("fullscreenchange", fullChanged);
-    return () => document.removeEventListener("fullscreenchange", fullChanged);
+    const events = ["fullscreenchange", "webkitfullscreenchange", "MSFullscreenChange"];
+    events.forEach((event) => document.addEventListener(event, fullChanged));
+    return () => events.forEach((event) => document.removeEventListener(event, fullChanged));
   }, []);
   async function fullscreen() {
     try {
-      if (document.fullscreenElement) await document.exitFullscreen();
-      else await document.documentElement.requestFullscreen();
+      await toggleFullscreen();
     } catch {
-      notify(
-        "Полный экран недоступен в этом браузере. Можно включить режим без интерфейса.",
-      );
+      setPanel(null);
+      setZen(true);
     }
+  }
+  function enterZen() {
+    setZen(true);
+    setPanel(null);
+    if (!fullscreenElement()) void fullscreen();
   }
   useEffect(() => {
     const tick = setInterval(() => {
@@ -280,12 +276,17 @@ export default function Sanctuary() {
         setTimerRunning(false);
         setZen(false);
         audio.current?.pause();
-        setNature(0);
+        setNoiseStop((v) => v + 1);
         notify("Сессия завершена. Время немного отдохнуть.");
       }
     }, 500);
     return () => clearInterval(tick);
   }, [timerRunning, notify]);
+  function cancelTimer() {
+    setTimerRunning(false);
+    setRemaining(null);
+    timerEnd.current = 0;
+  }
   function startTimer() {
     if (timerRunning) {
       setTimerRunning(false);
@@ -366,68 +367,9 @@ export default function Sanctuary() {
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [zen]);
-  useEffect(() => {
-    const mc = (
-      document as Document & {
-        modelContext?: {
-          registerTool: (tool: unknown, options: unknown) => void;
-        };
-      }
-    ).modelContext;
-    if (!mc?.registerTool) return;
-    const life = new AbortController();
-    try {
-      mc.registerTool(
-        {
-          name: "open_study_view",
-          description: "Switch between landscape and Go progress map.",
-          inputSchema: {
-            type: "object",
-            properties: { view: { enum: ["landscape", "path"] } },
-            required: ["view"],
-            additionalProperties: false,
-          },
-          annotations: { readOnlyHint: false },
-          execute: (input: { view: string }) => {
-            if (!input || !["landscape", "path"].includes(input.view))
-              throw Error("Invalid view");
-            setMode(input.view);
-            return { view: input.view };
-          },
-        },
-        { signal: life.signal },
-      );
-    } catch {}
-    return () => life.abort();
-  }, []);
-  async function upload(files: FileList | null) {
-    if (!files) return;
-    setUploading(true);
-    try {
-      for (const file of Array.from(files)) {
-        if (file.size > 25 * 1024 * 1024) throw Error("Максимум 25 МБ на трек");
-        const r = await fetch("/api/tracks", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/octet-stream",
-            "X-File-Name": encodeURIComponent(file.name),
-          },
-          body: file,
-        });
-        const d = (await r.json()) as Track & { error?: string };
-        if (!r.ok) throw Error(d.error);
-        setTracks((prev) => [d, ...prev]);
-      }
-      notify("Треки загружены. Добавь их в свой плейлист.");
-    } catch (e) {
-      notify((e as Error).message);
-    } finally {
-      setUploading(false);
-    }
-  }
   async function addPlaylist() {
     if (!newList.trim()) return;
-    const id = crypto.randomUUID();
+    const id = newId();
     if (
       await save({
         ...state,
@@ -451,13 +393,14 @@ export default function Sanctuary() {
     });
   }
   return (
-    <main
-      className={`sanctuary weather-${weather} ${zen ? "zen" : ""} mode-${mode}`}
-    >
-      <div className="world" />
-      <div className="atlas-world" />
-      <div className="weather-wash" />
-      <div className="mist" />
+    <main className={`sanctuary weather-${weather} ${zen ? "zen" : ""} ${remaining !== null ? "has-session" : ""}`}>
+      <Landscape
+        quality={display.quality}
+        weather={weather}
+        season={localWeather.season}
+        automatic={autoWeather}
+        onError={notify}
+      />
       <div className="shade" />
       <audio
         ref={audio}
@@ -474,30 +417,21 @@ export default function Sanctuary() {
           );
         }}
       />
-      <audio ref={rain} src="/audio/rain.mp3" loop preload="none" />
       <div className="interface" inert={zen}>
         <header>
-          <Link className="brand" href="/" aria-label="Тихая высота — главная">
+          <button
+            className="brand"
+            onClick={() => setZen(false)}
+            aria-label="Тихая высота — главная"
+          >
             <Mountain />
             <span>
               тихая высота<small>МЕСТО ДЛЯ ТВОИХ МЫСЛЕЙ</small>
             </span>
-          </Link>
-          <Tabs value={mode} onValueChange={setMode}>
-            <TabsList aria-label="Режим">
-              <TabsTrigger value="landscape">
-                <Mountain />
-                Пейзаж
-              </TabsTrigger>
-              <TabsTrigger value="path">
-                <Route />
-                Путь
-              </TabsTrigger>
-            </TabsList>
-          </Tabs>
+          </button>
           <div className="header-actions">
             <button
-              onClick={() => setPanel("atmosphere")}
+              onClick={() => { setSettingsSection("scene"); setPanel("atmosphere"); }}
               aria-label="Настроить атмосферу"
             >
               <Sun />
@@ -510,23 +444,13 @@ export default function Sanctuary() {
             </button>
           </div>
         </header>
-        {auth && (
+        {!ready && (
           <div className="connection">
-            <span>
-              Войди для доступа к своей музыке и прогрессу на всех устройствах.
-            </span>
-            <a href="/signin-with-chatgpt?return_to=/" target="_top">
-              Войти <ArrowUpRight />
-            </a>
-          </div>
-        )}
-        {!ready && !auth && (
-          <div className="connection">
-            {message ? "Хранилище пока недоступно." : "Загружаю твой путь…"}{" "}
+            {message ? "Хранилище пока недоступно." : "Загружаю библиотеку…"}{" "}
             <button onClick={load}>Повторить</button>
           </div>
         )}
-        {mode === "landscape" ? (
+        {
           <>
             <section className="intro">
               <p className="eyebrow">
@@ -542,7 +466,7 @@ export default function Sanctuary() {
                 <br />
                 Ты тоже можешь идти в своём ритме.
               </p>
-              <button className="quiet-link" onClick={() => setZen(true)}>
+              <button className="quiet-link" onClick={enterZen}>
                 <EyeOff />
                 Остаться с горами <ChevronRight />
               </button>
@@ -552,28 +476,50 @@ export default function Sanctuary() {
               <span>
                 {weather === "sunset"
                   ? "Последний свет на вершинах"
-                  : weather === "night"
-                    ? "Синий час"
-                    : weather === "rain"
-                      ? "Дождь в долине"
-                      : "Туман над озером"}
+                  : weather === "dawn"
+                    ? "Первый свет над озером"
+                    : weather === "day"
+                      ? "Ясный день в долине"
+                      : weather === "spring"
+                        ? "Долина просыпается после зимы"
+                        : weather === "autumn"
+                          ? "Золотая тишина горного леса"
+                          : weather === "winter"
+                            ? "Тишина заснеженной долины"
+                            : weather === "night"
+                              ? "Звёзды и огни горного поселения"
+                              : weather === "rain"
+                                ? "Дождь в долине"
+                                : "Туман над озером"}
               </span>
             </div>
             <div className="lower-row">
               <div className="weather-pills" aria-label="Атмосфера">
                 <button
                   className="auto-weather-button"
-                  aria-pressed={autoWeather}
-                  onClick={() => setAutoWeather(!autoWeather)}
+                  aria-pressed={autoWeather || localWeather.enabled}
+                  onClick={() => {
+                    localWeather.disable();
+                    setAutoWeather(localWeather.enabled ? false : !autoWeather);
+                  }}
                 >
                   <Repeat />
-                  {autoWeather ? `Авто · ${weatherMinutes} мин` : "Авто"}
+                  {localWeather.enabled
+                    ? "По месту"
+                    : autoWeather
+                      ? `Авто · ${weatherMinutes} мин`
+                      : "Авто"}
                 </button>
                 {[
+                  ["dawn", "Рассвет", Sunrise],
+                  ["day", "Лето", Sun],
                   ["sunset", "Закат", Sun],
                   ["fog", "Туман", CloudFog],
                   ["rain", "Дождь", CloudRain],
                   ["night", "Ночь", Moon],
+                  ["winter", "Зима", Snowflake],
+                  ["spring", "Весна", Flower2],
+                  ["autumn", "Осень", Leaf],
                 ].map(([value, label, Icon]) => {
                   const I = Icon as typeof Sun;
                   return (
@@ -588,48 +534,9 @@ export default function Sanctuary() {
                   );
                 })}
               </div>
-              <button className="path-hint" onClick={() => setMode("path")}>
-                <span className="go-badge">Go</span>
-                <span>
-                  Твоя следующая высота
-                  <small>12 изученных тем · твой горный атлас</small>
-                </span>
-                <ArrowUpRight />
-              </button>
             </div>
           </>
-        ) : (
-          <section className="atlas">
-            <div className="atlas-heading">
-              <p className="eyebrow">ТВОЯ ЭКСПЕДИЦИЯ</p>
-              <h1>
-                Атлас <i>Go</i>
-              </h1>
-              <p>12 знакомых тем. Один пройденный путь.</p>
-            </div>
-            <div
-              className="atlas-points"
-              aria-label="Горная карта изученных тем Go"
-            >
-              {atlasStops.map((stop, i) => (
-                <article
-                  className={"atlas-stop stop-" + i}
-                  key={stop.title}
-                  style={{ left: stop.x + "%", top: stop.y + "%" }}
-                >
-                  <span className="atlas-number">
-                    {String(i + 1).padStart(2, "0")}
-                  </span>
-                  <div>
-                    <h2>{stop.title}</h2>
-                    <p>{stop.topics}</p>
-                    <code>{stop.code}</code>
-                  </div>
-                </article>
-              ))}
-            </div>
-          </section>
-        )}
+        }
 
         <footer className="player">
           <button className="track-info" onClick={() => setPanel("music")}>
@@ -640,7 +547,7 @@ export default function Sanctuary() {
               {track.name}
               <small>
                 {builtins.some((t) => t.id === track.id)
-                  ? "Горный эмбиент"
+                  ? "Музыка для фокуса"
                   : "Моя музыка"}{" "}
                 · {playing ? "играет" : "на паузе"}
               </small>
@@ -710,24 +617,55 @@ export default function Sanctuary() {
             </div>
             <button
               className="library-button"
-              onClick={() => setPanel("music")}
+              onClick={() => { setSettingsSection("sound"); setPanel("atmosphere"); }}
             >
-              <Music2 />
-              Плейлисты
+              <Volume2 />
+              Белый шум
             </button>
           </div>
         </footer>
         <div className="bottom-line">
           <span>Никуда не торопись. Просто продолжай.</span>
-          <button onClick={() => setPanel("atmosphere")}>
+          <button onClick={() => { setSettingsSection("focus"); setPanel("atmosphere"); }}>
             <Timer />
             {remaining !== null
-              ? `${time(remaining)} ${timerRunning ? "· фокус" : "· пауза"}`
+              ? `${focusTime(remaining)} ${timerRunning ? "· фокус" : "· пауза"}`
               : "Таймер фокуса"}
           </button>
           <span>СТРЕЛКИ — ВЫБОР · ENTER — ДЕЙСТВИЕ</span>
         </div>
       </div>
+      {remaining !== null && (
+        <div
+          className="session-clock"
+          role="timer"
+          aria-label="Осталось времени в сессии"
+        >
+          <span>
+            {remaining === 0
+              ? "Сессия завершена"
+              : timerRunning
+                ? "Время для себя"
+                : "Сессия на паузе"}
+          </span>
+          <strong>{focusTime(remaining)}</strong>
+          <button
+            onClick={startTimer}
+            aria-label={
+              timerRunning ? "Приостановить сессию" : "Продолжить сессию"
+            }
+          >
+            {timerRunning ? <Pause /> : <Play />}
+          </button>
+          <button
+            onClick={cancelTimer}
+            aria-label="Убрать сессию"
+            title="Убрать сессию"
+          >
+            <X />
+          </button>
+        </div>
+      )}
       {zen && (
         <button className="zen-return" onClick={() => setZen(false)}>
           <Mountain />
@@ -767,7 +705,7 @@ export default function Sanctuary() {
                   onClick={() => setPlaylist("ambient")}
                 >
                   <Headphones />
-                  Горный эмбиент <span>3</span>
+                  Музыка для фокуса <span>{allTracks.length}</span>
                 </button>
                 {state.playlists.map((p) => (
                   <button
@@ -803,11 +741,13 @@ export default function Sanctuary() {
                 </button>
               </form>
               <h3>
-                {playlist === "ambient" ? "Горный эмбиент" : currentList?.name}
+                {playlist === "ambient"
+                  ? "Музыка для фокуса"
+                  : currentList?.name}
               </h3>
               <p className="small-copy">
                 {playlist === "ambient"
-                  ? "Три оригинальные синтезированные композиции без вокала."
+                  ? "Девять оригинальных композиций без вокала: клавиши, мягкий ритм, эмбиент."
                   : "Порядок треков можно менять стрелками."}
               </p>
               {queue.length === 0 && (
@@ -815,6 +755,29 @@ export default function Sanctuary() {
                   <Music2 />
                   <p>Пока тихо. Добавь треки из библиотеки ниже.</p>
                 </div>
+              )}
+              {currentList && (
+                <select
+                  aria-label="Добавить трек в плейлист"
+                  value=""
+                  disabled={saving}
+                  onChange={(event) => {
+                    if (event.target.value)
+                      void editList([
+                        ...currentList.tracks,
+                        event.target.value,
+                      ]);
+                  }}
+                >
+                  <option value="">Добавить трек в плейлист…</option>
+                  {allTracks
+                    .filter((t) => !currentList.tracks.includes(t.id))
+                    .map((t) => (
+                      <option key={t.id} value={t.id}>
+                        {t.name}
+                      </option>
+                    ))}
+                </select>
               )}
               {queue.map((t, i) => (
                 <div className="track-row" key={t.id}>
@@ -864,52 +827,28 @@ export default function Sanctuary() {
                   )}
                 </div>
               ))}
-              <h3>Библиотека</h3>
-              <label className={`upload-button ${!ready ? "disabled" : ""}`}>
-                <Upload />
-                {uploading ? "Загружаю…" : "Загрузить музыку"}
-                <input
-                  type="file"
-                  accept=".mp3,.m4a,.wav,.ogg,.flac,.aac"
-                  multiple
-                  disabled={!ready || uploading}
-                  onChange={(e) => {
-                    void upload(e.target.files);
-                    e.target.value = "";
-                  }}
-                />
-              </label>
-              <p className="small-copy">
-                До 25 МБ на трек. MP3 — самый универсальный вариант для ТВ.
-                Загрузки доступны на устройствах с тем же аккаунтом.
-              </p>
-              {allTracks.map((t) => (
-                <div key={t.id} className="track-row">
-                  <button className="track-name" onClick={() => playTrack(t)}>
-                    <Play />
-                    <span>{t.name}</span>
-                  </button>
-                  {currentList && (
-                    <button
-                      aria-label={"Добавить: " + t.name}
-                      disabled={saving || currentList.tracks.includes(t.id)}
-                      onClick={() => editList([...currentList.tracks, t.id])}
-                    >
-                      {currentList.tracks.includes(t.id) ? <Check /> : <Plus />}
-                    </button>
-                  )}
-                </div>
-              ))}
             </div>
           )}
           {panel === "atmosphere" && (
-            <div className="panel-body">
+            <>
+            <nav className="settings-nav" aria-label="Разделы настроек">
+              {[["scene", "Пейзаж"], ["sound", "Белый шум"], ["focus", "Фокус"], ["screen", "Экран"]].map(([id, label]) => <button key={id} aria-pressed={settingsSection === id} onClick={() => setSettingsSection(id)}>{label}</button>)}
+            </nav>
+            <div className="panel-body settings-body" key={settingsSection}>
+              {settingsSection === "screen" && <DisplaySettings display={display} weather={weather} season={localWeather.season} zen={zen} />}
+              {settingsSection === "sound" && <NoiseMixer mixer={mixer} />}
+              <section hidden={settingsSection !== "scene"}>
               <h3>Как живёт пейзаж</h3>
               <div className="weather-behavior">
                 <button
-                  className={!autoWeather ? "chosen" : ""}
-                  aria-pressed={!autoWeather}
-                  onClick={() => setAutoWeather(false)}
+                  className={
+                    !autoWeather && !localWeather.enabled ? "chosen" : ""
+                  }
+                  aria-pressed={!autoWeather && !localWeather.enabled}
+                  onClick={() => {
+                    localWeather.disable();
+                    setAutoWeather(false);
+                  }}
                 >
                   <Sun />
                   <span>
@@ -917,9 +856,14 @@ export default function Sanctuary() {
                   </span>
                 </button>
                 <button
-                  className={autoWeather ? "chosen" : ""}
-                  aria-pressed={autoWeather}
-                  onClick={() => setAutoWeather(true)}
+                  className={
+                    autoWeather && !localWeather.enabled ? "chosen" : ""
+                  }
+                  aria-pressed={autoWeather && !localWeather.enabled}
+                  onClick={() => {
+                    localWeather.disable();
+                    setAutoWeather(true);
+                  }}
                 >
                   <Repeat />
                   <span>
@@ -928,30 +872,55 @@ export default function Sanctuary() {
                   </span>
                 </button>
               </div>
-              {autoWeather && (
-                <>
-                  <h3>Менять условия каждые</h3>
-                  <div className="atmosphere-grid">
-                    {[10, 20, 30].map((minutes) => (
-                      <button
-                        key={minutes}
-                        className={weatherMinutes === minutes ? "chosen" : ""}
-                        aria-pressed={weatherMinutes === minutes}
-                        onClick={() => setWeatherMinutes(minutes)}
-                      >
-                        {minutes} мин
-                      </button>
-                    ))}
-                  </div>
-                </>
-              )}
-              <h3>{autoWeather ? "Сейчас в долине" : "Оставить в долине"}</h3>
+              <form
+                className="weather-interval"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const value = Number(
+                    new FormData(event.currentTarget).get("weatherMinutes"),
+                  );
+                  if (!validWeatherMinutes(value)) return;
+                  localWeather.disable();
+                  setWeatherMinutes(value);
+                  setAutoWeather(true);
+                }}
+              >
+                <label htmlFor="weather-minutes">
+                  Менять погоду каждые, мин
+                </label>
+                <div>
+                  <input
+                    key={weatherMinutes}
+                    id="weather-minutes"
+                    name="weatherMinutes"
+                    type="number"
+                    inputMode="numeric"
+                    min="1"
+                    max="1440"
+                    step="1"
+                    required
+                    defaultValue={weatherMinutes}
+                  />
+                  <button type="submit">Применить</button>
+                </div>
+                <small>Применение включает автосмену.</small>
+              </form>
+              <h3>
+                {autoWeather || localWeather.enabled
+                  ? "Сейчас в долине"
+                  : "Оставить в долине"}
+              </h3>
               <div className="atmosphere-grid">
                 {[
+                  ["dawn", "Рассвет", Sunrise],
+                  ["day", "Лето", Sun],
                   ["sunset", "Закат", Sun],
                   ["fog", "Туман", CloudFog],
                   ["rain", "Дождь", CloudRain],
                   ["night", "Ночь", Moon],
+                  ["winter", "Зима", Snowflake],
+                  ["spring", "Весна", Flower2],
+                  ["autumn", "Осень", Leaf],
                 ].map(([v, l, I]) => {
                   const Icon = I as typeof Sun;
                   return (
@@ -966,17 +935,12 @@ export default function Sanctuary() {
                   );
                 })}
               </div>
-              <h3>
-                Звук дождя <span>{nature}%</span>
-              </h3>
-              <Slider
-                aria-label="Громкость дождя"
-                value={[nature]}
-                onValueChange={([v]) => setNature(v)}
+              <LocalWeatherPicker
+                weather={localWeather}
+                onActivate={() => setAutoWeather(false)}
               />
-              <p className="small-copy">
-                Мягкий синтезированный шум, независимо от музыки.
-              </p>
+              </section>
+              <section hidden={settingsSection !== "focus"}>
               <h3>Сессия фокуса</h3>
               <div className="atmosphere-grid">
                 {[25, 50, 90].map((n) => (
@@ -993,20 +957,55 @@ export default function Sanctuary() {
                   </button>
                 ))}
               </div>
+              <form
+                className="focus-duration"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const value = Number(
+                    new FormData(event.currentTarget).get("focusMinutes"),
+                  );
+                  if (!validFocusMinutes(value)) return;
+                  setTimerLength(value);
+                  cancelTimer();
+                }}
+              >
+                <label htmlFor="focus-minutes">Своё время, в минутах</label>
+                <div>
+                  <input
+                    id="focus-minutes"
+                    key={timerLength}
+                    name="focusMinutes"
+                    type="number"
+                    min={5}
+                    max={525600}
+                    step={1}
+                    required
+                    defaultValue={timerLength}
+                  />
+                  <button type="submit">Выбрать</button>
+                </div>
+              </form>
               <div className="timer-number">
-                {time(remaining ?? timerLength * 60)}
+                {focusTime(remaining ?? timerLength * 60)}
               </div>
               <button className="primary" onClick={startTimer}>
                 {timerRunning ? <Pause /> : <Play />}
                 {timerRunning ? "Пауза" : "Начать сессию"}
               </button>
+              {remaining !== null && (
+                <button onClick={cancelTimer}>
+                  <X />
+                  Убрать сессию
+                </button>
+              )}
               <p className="small-copy">
                 В конце музыка остановится. Можно слушать без таймера.
               </p>
+              </section>
               <button
+                className="settings-zen"
                 onClick={() => {
-                  setPanel(null);
-                  setZen(true);
+                  enterZen();
                 }}
               >
                 <EyeOff />
@@ -1018,6 +1017,7 @@ export default function Sanctuary() {
                 Движение приглушено при системной настройке уменьшения анимации.
               </p>
             </div>
+            </>
           )}
         </SheetContent>
       </Sheet>

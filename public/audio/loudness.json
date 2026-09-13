@@ -1,0 +1,59 @@
+{
+  "targetLUFS": -21,
+  "tracks": [
+    {
+      "file": "dawn.mp3",
+      "beforeLUFS": -34.24,
+      "afterLUFS": -21.26,
+      "truePeakDBTP": -10.82
+    },
+    {
+      "file": "clouds.mp3",
+      "beforeLUFS": -32.12,
+      "afterLUFS": -21.27,
+      "truePeakDBTP": -11.89
+    },
+    {
+      "file": "night.mp3",
+      "beforeLUFS": -33.47,
+      "afterLUFS": -21.26,
+      "truePeakDBTP": -10.79
+    },
+    {
+      "file": "quiet-piano.mp3",
+      "beforeLUFS": -21.97,
+      "afterLUFS": -21.27,
+      "truePeakDBTP": -10.3
+    },
+    {
+      "file": "amber-room.mp3",
+      "beforeLUFS": -22.01,
+      "afterLUFS": -21.27,
+      "truePeakDBTP": -10.67
+    },
+    {
+      "file": "silent-orbit.mp3",
+      "beforeLUFS": -22.22,
+      "afterLUFS": -21.26,
+      "truePeakDBTP": -10.93
+    },
+    {
+      "file": "cedar-strings.mp3",
+      "beforeLUFS": -22.0,
+      "afterLUFS": -21.27,
+      "truePeakDBTP": -10.16
+    },
+    {
+      "file": "first-snow.mp3",
+      "beforeLUFS": -22.03,
+      "afterLUFS": -21.26,
+      "truePeakDBTP": -10.56
+    },
+    {
+      "file": "warm-keys.mp3",
+      "beforeLUFS": -21.97,
+      "afterLUFS": -21.26,
+      "truePeakDBTP": -10.86
+    }
+  ]
+}

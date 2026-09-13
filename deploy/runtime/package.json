@@ -1,0 +1,17 @@
+{
+  "name": "vibe-island-runtime",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "start": "node server/index.mjs",
+    "stats": "node scripts/stats.mjs"
+  },
+  "dependencies": {
+    "geoip-lite": "2.0.3",
+    "zod": "3.25.76"
+  }
+}

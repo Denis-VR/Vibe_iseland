@@ -1,0 +1,7 @@
+{
+  "method": "built-in imagegen edit",
+  "usedOnSite": false,
+  "requestedResolution": "3840x2160",
+  "actualResolution": "1672x941",
+  "prompt": "Edit target: this exact alpine sunset landscape. Create a truly high resolution 3840x2160 4K reconstruction for a large television, maximum available output resolution. Preserve the exact composition, viewpoint, mountain contours, hiker position on right rock, tiny village, trees, lake, orange sunset sun at RIGHT and every major object. Improve natural fine details everywhere: individual conifer needles and branches, rock grain and fissures, tiny authentic wooden cabins, fine water ripples, delicate cloud texture and snow ridges. Sharp believable cinematic matte painting with natural texture, not oversharpened edges, no painterly smudges, no artificial noise. Maintain the exact scene and mood, no new objects, no text or UI, no borders, no tiled or duplicated images. Full frame landscape 16:9. Deliver the largest actual raster dimensions possible, target 3840 by 2160 pixels."
+}

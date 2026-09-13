@@ -46,3 +46,10 @@ next-env.d.ts
 /work/
 
 *.tsbuildinfo
+
+/data/
+/dist-local/
+
+/.tools/
+/output/upscale/
+/output/nature-new/

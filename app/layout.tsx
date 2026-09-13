@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Тихая высота — горы, музыка и твой путь",
-  description: "Личное пространство для концентрации с горными пейзажами, музыкой и картой изучения Go.",
+  title: "Тихая высота — горы и музыка",
+  description:
+    "Личное пространство для концентрации с горными пейзажами, музыкой и звуками природы.",
   other: {
     "codex-preview": "development",
   },

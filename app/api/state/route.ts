@@ -1,6 +1,6 @@
 import { z } from "zod";
 import { identity, database, failure } from "@/lib/server";
-import { initialState } from "@/app/course";
+import { initialState } from "@/app/library";
 const str = z.string();
 const schema = z.object({
   revision: z.number().int().min(0),
