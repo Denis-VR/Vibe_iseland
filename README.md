@@ -4,7 +4,7 @@
 
 **Место для твоих мыслей.** Живые горные пейзажи, музыка и звуки природы для фокуса и отдыха — в браузере компьютера или Smart TV.
 
-[**vibeisland.fun**](https://vibeisland.fun) · [Запуск](#-запуск) · [Как устроено](#-как-устроено) · [Подробная документация](docs/DETAILS.md)
+[**vibeisland**]([https://vibeisland.fun](https://denis-vr.github.io/Vibe_iseland/)) · [Запуск](#-запуск) · [Как устроено](#-как-устроено) · [Подробная документация](docs/DETAILS.md)
 
 ![React](https://img.shields.io/badge/React%2019-20232A?style=flat-square&logo=react&logoColor=61DAFB) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white) ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white) ![Tailwind](https://img.shields.io/badge/Tailwind%204-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white) ![Node.js](https://img.shields.io/badge/Node.js%2024-339933?style=flat-square&logo=nodedotjs&logoColor=white) ![SQLite](https://img.shields.io/badge/node%3Asqlite-003B57?style=flat-square&logo=sqlite&logoColor=white) ![Web Audio](https://img.shields.io/badge/Web%20Audio%20API-FF6F00?style=flat-square) [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f?style=flat-square)](LICENSE)
 
