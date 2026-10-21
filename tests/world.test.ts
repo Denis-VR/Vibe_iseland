@@ -77,13 +77,13 @@ test("custom weather interval is validated and used exactly", () => {
 });
 
 import { validFocusMinutes, focusTime, weatherForPlace } from "../app/world.ts";
-test("focus duration accepts 5 minutes through 365 days and formats long sessions", () => {
-  for (const value of [5, 25, 1440, 525600])
+test("focus duration accepts 5 minutes through 24 hours and formats long sessions", () => {
+  for (const value of [5, 25, 1440])
     assert.ok(validFocusMinutes(value));
-  for (const value of [0, 4, 5.5, 525601, Infinity, NaN, "25"])
+  for (const value of [0, 4, 5.5, 1441, Infinity, NaN, "25"])
     assert.equal(validFocusMinutes(value), false);
   assert.equal(focusTime(5 * 60), "05:00");
-  assert.equal(focusTime(525600 * 60), "365 д · 00:00:00");
+  assert.equal(focusTime(1440 * 60), "1 д · 00:00:00");
 });
 test("local weather follows sun times and weather codes independently of browser timezone", () => {
   const base = {

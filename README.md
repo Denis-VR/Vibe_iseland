@@ -70,6 +70,12 @@ npm start          # http://localhost:4173
 
 Для разработки — `npm run dev` (порт 5173). Для телевизора в домашней сети — `HOST=0.0.0.0 npm start` и открыть `http://IP-КОМПЬЮТЕРА:4173`.
 
+## GitHub Pages
+
+Workflow `.github/workflows/pages.yml` собирает сайт для адреса проекта `https://denis-vr.github.io/Vibe_iseland/` и публикует папку `dist-local` после push в `main`. В настройках репозитория выбери **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+
+На Pages доступны сцены, встроенная музыка, звуковой микшер, таймер и локальные плейлисты (сохраняются только в браузере). Серверные функции, включая загрузку своих треков и общую библиотеку, требуют серверной версии. GitHub Pages не меняет домен `vibeisland.fun`.
+
 ## 🧩 Как устроено
 
 ```mermaid

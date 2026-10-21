@@ -1,4 +1,5 @@
 import http from "node:http";
+import { musicAccess } from "./music-access.mjs";
 import { createInsights } from "./insights.mjs";
 import { DatabaseSync } from "node:sqlite";
 import { createReadStream } from "node:fs";
@@ -17,17 +18,18 @@ db.exec(
 );
 db.prepare("INSERT OR IGNORE INTO library VALUES(1,?,0)").run(
   JSON.stringify({
-    playlists: [{ id: "personal", name: "Мой горный плейлист", tracks: [] }],
+    playlists: [{ id: "personal", name: "Мой плейлист", tracks: [] }],
   }),
 );
 const publicSite = process.env.PUBLIC_SITE === "1";
 const defaultLibrary = JSON.stringify({
-  playlists: [{ id: "personal", name: "Мой горный плейлист", tracks: [] }],
+  playlists: [{ id: "personal", name: "Мой плейлист", tracks: [] }],
 });
 db.exec(
   "CREATE TABLE IF NOT EXISTS browser_libraries (owner TEXT PRIMARY KEY, value TEXT NOT NULL, revision INTEGER NOT NULL)",
 );
 function libraryOwner(req, res) {
+  if (process.env.PLAYLIST_BY_IP === "1") return music.owner(req);
   const cookie = (req.headers.cookie || "")
     .split(";")
     .map((part) => part.trim())
@@ -41,6 +43,7 @@ function libraryOwner(req, res) {
   );
   return owner;
 }
+const music = await musicAccess(root, data);
 const insights = createInsights(db);
 const schema = z.object({
   revision: z.number().int().min(0),
@@ -120,7 +123,7 @@ async function sendFile(req, res, path, mime) {
     "Content-Length": end - start + 1,
     "Accept-Ranges": "bytes",
     "X-Content-Type-Options": "nosniff",
-    "Cache-Control": path.startsWith(data) ? "private, no-store" : "no-cache",
+    "Cache-Control": path.startsWith(data) || path.includes("/private/") ? "private, no-store" : "no-cache",
   };
   if (status === 206)
     headers["Content-Range"] = `bytes ${start}-${end}/${file.size}`;
@@ -168,6 +171,13 @@ const server = http.createServer(async (req, res) => {
       } catch {}
       if (!origin || origin.host !== req.headers.host)
         return json(res, 403, { error: "Запрос с другого сайта отклонён" });
+    }
+    if (decodeURIComponent(path).startsWith('/audio/secret/') || decodeURIComponent(path).startsWith('/private/')) return json(res,404,{error:'Не найдено'});
+    if (path.startsWith('/api/music/') && ['GET','HEAD'].includes(req.method)) {
+      const t=music.find(path.split('/').pop());
+      if(!t) return json(res,404,{error:'Трек не найден'});
+      if(t.secret) res.setHeader('Cache-Control','private, no-store');
+      return await sendFile(req,res,t.file,'audio/mpeg');
     }
     if (await insights(req, res, url, { json, read })) return;
     if (path === "/api/health") return json(res, 200, { ok: true });
@@ -221,7 +231,7 @@ const server = http.createServer(async (req, res) => {
       return json(
         res,
         200,
-        db.prepare("SELECT * FROM tracks ORDER BY rowid DESC").all(),
+        [...db.prepare("SELECT * FROM tracks ORDER BY rowid DESC").all(), ...music.catalog(req)],
       );
     if (path === "/api/tracks" && req.method === "POST")
       return json(res, 405, { error: "Загрузка своих треков отключена" });

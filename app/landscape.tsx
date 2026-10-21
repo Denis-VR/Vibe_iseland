@@ -3,6 +3,7 @@ import { useEffect, useRef } from "react";
 import { sceneResolution, type SceneQuality } from "./scene-quality";
 import { sceneAsset, lightSeason } from "./season-light";
 import { type Season } from "./world";
+import { publicPath } from "./public-path.ts";
 
 // A cancelled transition starts from its actual rendered frame, never a queued image.
 export function Landscape({
@@ -41,13 +42,13 @@ export function Landscape({
             const img = new Image();
             img.onload = () => resolve(img);
             let fallback = !useUhd;
-            const standard = `/scenes/${scene}.webp?v=${scene === "day" ? 5 : scene === "dawn" ? 4 : 3}`;
+            const standard = `${publicPath(`scenes/${scene}.webp`)}?v=${scene === "day" ? 5 : scene === "dawn" ? 4 : 3}`;
             img.onerror = () => {
               if (!fallback) { fallback = true; img.src = standard; return; }
               cache.current.delete(key);
               reject(Error("image"));
             };
-            img.src = useUhd ? `/scenes/uhd/${scene}.webp?v=1` : standard;
+            img.src = useUhd ? `${publicPath(`scenes/uhd/${scene}.webp`)}?v=1` : standard;
           }),
         );
       return cache.current.get(key)!;

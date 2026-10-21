@@ -1,5 +1,6 @@
 "use client";
 import { DisplaySettings, useDisplay, fullscreenElement, toggleFullscreen } from "./display";
+import { useWindowDrag } from "./use-window-drag";
 import { newId } from "./id";
 import { LocalWeatherPicker, useLocalWeather } from "./local-weather";
 import { Landscape } from "./landscape";
@@ -33,16 +34,21 @@ import {
   ArrowDown,
   Trash2,
   Timer,
+  ListTodo,
+  AudioLines,
   ChevronRight,
 } from "lucide-react";
 import {
   Sheet,
   SheetContent,
+  SheetClose,
   SheetHeader,
   SheetTitle,
   SheetDescription,
 } from "@/components/ui/sheet";
 import { Slider } from "./volume-slider";
+import { TaskCard, useFocusTasks } from "./focus-task-ui";
+import { PlaybackRequest } from "./playback-request";
 import { initialState, builtins, type LibraryState } from "./library";
 import {
   weatherOrder,
@@ -53,7 +59,9 @@ import {
   focusTime,
 } from "./world";
 
-type Track = { id: string; name: string; url?: string; subtitle?: string };
+type Track = { id: string; name: string; url?: string; subtitle?: string; group?: string };
+const githubPages = import.meta.env.VITE_GITHUB_PAGES === "true";
+const libraryStorageKey = "quiet-height-library";
 function time(v: number) {
   return Math.floor(v / 60) + ":" + String(Math.floor(v % 60)).padStart(2, "0");
 }
@@ -64,6 +72,7 @@ export default function Sanctuary() {
   const [weather, setWeather] = useState("sunset"),
     [zen, setZen] = useState(false),
     [full, setFull] = useState(false);
+  const settingsBody = useRef<HTMLDivElement>(null);
   const [settingsSection, setSettingsSection] = useState("scene");
   const [panel, setPanel] = useState<"music" | "atmosphere" | null>(null);
   const [state, setState] = useState<LibraryState>(initialState),
@@ -85,22 +94,77 @@ export default function Sanctuary() {
     [remaining, setRemaining] = useState<number | null>(null),
     [timerLength, setTimerLength] = useState(25),
     [timerRunning, setTimerRunning] = useState(false);
+  const playback = useRef(new PlaybackRequest());
   const audio = useRef<HTMLAudioElement>(null),
     timerEnd = useRef(0),
     busy = useRef(false);
-  const allTracks = [...builtins, ...tracks],
+  const allTracks: Track[] = [...builtins, ...tracks],
     currentList = state.playlists.find((p) => p.id === playlist),
     queue =
       playlist === "ambient"
-        ? allTracks
+        ? builtins
+        : playlist === "mymusic" || playlist === "secret"
+          ? tracks.filter(t => t.group === playlist)
         : (currentList?.tracks
             .map((id) => allTracks.find((t) => t.id === id))
             .filter(Boolean) as Track[]) || [];
   const notify = useCallback((s: string) => setMessage(s), []);
   const display = useDisplay();
   const localWeather = useLocalWeather(setWeather);
+  const tasks = useFocusTasks();
+  const [tasksVisible, setTasksVisible] = useState(true);
+  const [tasksRequested, setTasksRequested] = useState(false);
+  const [timerVisible, setTimerVisible] = useState(false);
+  const { card: timerCard, handle: timerDragHandle } = useWindowDrag();
+  const [timerClosing, setTimerClosing] = useState(false);
+  const [timerExpanded, setTimerExpanded] = useState(false);
+  const showTasks = tasksVisible && (tasksRequested || tasks.day.tasks.length > 0);
+  function openTimer() { setTimerClosing(false); setTimerVisible(true); setTimerExpanded(true); }
+  function openTasks() {
+    setTasksVisible(true);
+    setTasksRequested(true);
+  }
+  const focusWidgets = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const widgets = focusWidgets.current;
+    if (!widgets) return;
+    let frame = 0;
+    const measure = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        const box = widgets.getBoundingClientRect();
+        let bottom = window.innerHeight - 24;
+        if (!zen) {
+          for (const selector of [".lower-row", ".player", ".bottom-line", ".quiet-link"]) {
+            const element = document.querySelector<HTMLElement>(selector);
+            if (!element || getComputedStyle(element).display === "none") continue;
+            const rect = element.getBoundingClientRect();
+            if (rect.height && rect.top > box.top && rect.right > box.left && rect.left < box.right) bottom = Math.min(bottom, rect.top - 16);
+          }
+        }
+        widgets.style.setProperty("--focus-space", `${Math.max(0, bottom - box.top)}px`);
+      });
+    };
+    const observer = new ResizeObserver(measure);
+    for (const selector of [".sanctuary", ".interface", ".lower-row", ".player", ".scene-caption", ".intro"]) {
+      const element = document.querySelector(selector);
+      if (element) observer.observe(element);
+    }
+    window.addEventListener("resize", measure);
+    measure();
+    return () => { observer.disconnect(); cancelAnimationFrame(frame); window.removeEventListener("resize", measure); };
+  }, [zen, showTasks, timerVisible]);
   const mixer = useNoiseMixer({ stopSignal: noiseStop, notify });
   const load = useCallback(async () => {
+    if (githubPages) {
+      try {
+        const saved = JSON.parse(localStorage.getItem(libraryStorageKey) || "null") as LibraryState | null;
+        if (saved?.playlists) setState(saved);
+      } catch { /* Use the default library when browser storage is unavailable. */ }
+      setTracks([]);
+      setReady(true);
+      return;
+    }
     try {
       const r = await fetch("/api/state");
       const d = (await r.json()) as {
@@ -109,7 +173,7 @@ export default function Sanctuary() {
         error?: string;
       };
       if (!r.ok) throw Error(d.error);
-      setState(d.state);
+      setState({ ...d.state, playlists: d.state.playlists.map(p => p.id === "personal" && p.name === "Мой горный плейлист" ? { ...p, name: "Мой плейлист" } : p) });
       setRevision(d.revision);
       const tr = await fetch("/api/tracks");
       const td = (await tr.json()) as Track[] & { error?: string };
@@ -153,9 +217,9 @@ export default function Sanctuary() {
   }, [weather, autoWeather, weatherMinutes, prefsLoaded]);
   useEffect(() => {
     if (!autoWeather || !prefsLoaded || localWeather.enabled) return;
-    return scheduleWeather(weatherMinutes, () =>
-      setWeather((current) => nextWeather(current)),
-    );
+    return scheduleWeather(weatherMinutes, () => {
+      setWeather(current => nextWeather(current));
+    });
   }, [autoWeather, weatherMinutes, prefsLoaded, localWeather.enabled]);
   useEffect(() => {
     void Promise.resolve().then(load);
@@ -171,6 +235,16 @@ export default function Sanctuary() {
       return false;
     }
     if (busy.current) return false;
+    if (githubPages) {
+      try {
+        localStorage.setItem(libraryStorageKey, JSON.stringify(next));
+        setState(next);
+        return true;
+      } catch {
+        notify("Не удалось сохранить библиотеку в этом браузере.");
+        return false;
+      }
+    }
     busy.current = true;
     setSaving(true);
     try {
@@ -199,14 +273,11 @@ export default function Sanctuary() {
       audio.current.src = t.url || "/api/tracks/" + t.id;
       audio.current.volume = volume / 100;
       setElapsed(0);
-      try {
-        await audio.current.play();
-      } catch {
+      const el = audio.current;
+      await playback.current.run(() => el.play(), () => {
         setPlaying(false);
-        notify(
-          "Не удалось воспроизвести файл. Попробуй MP3 или нажми «Играть» ещё раз.",
-        );
-      }
+        notify("Не удалось воспроизвести трек. Попробуй ещё раз.");
+      });
     },
     [volume, notify],
   );
@@ -214,6 +285,7 @@ export default function Sanctuary() {
     const el = audio.current;
     if (!el) return;
     if (playing) {
+      playback.current.cancel();
       el.pause();
       return;
     }
@@ -221,11 +293,9 @@ export default function Sanctuary() {
       await playTrack(track);
       return;
     }
-    try {
-      await el.play();
-    } catch {
+    await playback.current.run(() => el.play(), () => {
       notify("Браузер не воспроизвёл аудио. Попробуй другой трек.");
-    }
+    });
   }
   function nextTrack(direction = 1, ended = false) {
     if (!queue.length) return;
@@ -275,6 +345,7 @@ export default function Sanctuary() {
       if (left === 0) {
         setTimerRunning(false);
         setZen(false);
+        playback.current.cancel();
         audio.current?.pause();
         setNoiseStop((v) => v + 1);
         notify("Сессия завершена. Время немного отдохнуть.");
@@ -311,17 +382,16 @@ export default function Sanctuary() {
         }
         return;
       }
-      if (zen) {
+      const target = e.target as HTMLElement;
+      if (zen && !target.closest('.focus-widgets, [role="dialog"]')) {
         setZen(false);
         return;
       }
-      const target = e.target as HTMLElement;
-      if (
-        target.closest(
-          'input,textarea,[role="slider"],[role="tablist"],[role="combobox"]',
-        )
-      )
-        return;
+      if (target.closest(".task-grip")) return;
+      const vertical = e.key === "ArrowUp" || e.key === "ArrowDown";
+      const slider = target.closest('[role="slider"]');
+      if (slider && !vertical) return;
+      if (!slider && target.closest('input,textarea,[role="tablist"],[role="combobox"]')) return;
       if (!["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key))
         return;
       const scope = document.querySelector('[role="dialog"]') || document;
@@ -332,12 +402,33 @@ export default function Sanctuary() {
       ).filter(
         (el) =>
           el.getBoundingClientRect().width > 0 &&
-          el.getAttribute("aria-hidden") !== "true",
+          el.getAttribute("aria-hidden") !== "true" &&
+          !el.closest('[inert], [hidden]'),
       );
       const from = document.activeElement as HTMLElement;
       const box = from?.getBoundingClientRect();
       if (!box || !elements.includes(from)) {
         elements[0]?.focus();
+        return;
+      }
+      // A remote must be able to leave a slider. In dialogs use document order
+      // vertically, including controls below the scroll viewport; left/right
+      // stay with the slider for changing its value.
+      if (scope !== document && vertical) {
+        const nav = from.closest(".settings-nav");
+        const body = scope.querySelector(".panel-body");
+        const bodyElements = elements.filter((el) => body?.contains(el));
+        let next: HTMLElement | undefined;
+        if (nav && e.key === "ArrowDown") next = bodyElements[0];
+        else if (from === bodyElements[0] && e.key === "ArrowUp")
+          next = scope.querySelector<HTMLElement>('.settings-nav [aria-pressed="true"]') || undefined;
+        else next = elements[elements.indexOf(from) + (e.key === "ArrowDown" ? 1 : -1)];
+        e.preventDefault();
+        e.stopPropagation();
+        if (next) {
+          next.focus({ preventScroll: true });
+          next.scrollIntoView({ block: "nearest", inline: "nearest" });
+        }
         return;
       }
       let best: HTMLElement | undefined,
@@ -364,8 +455,8 @@ export default function Sanctuary() {
         best.scrollIntoView({ block: "nearest" });
       }
     }
-    document.addEventListener("keydown", onKey);
-    return () => document.removeEventListener("keydown", onKey);
+    document.addEventListener("keydown", onKey, true);
+    return () => document.removeEventListener("keydown", onKey, true);
   }, [zen]);
   async function addPlaylist() {
     if (!newList.trim()) return;
@@ -393,7 +484,7 @@ export default function Sanctuary() {
     });
   }
   return (
-    <main className={`sanctuary weather-${weather} ${zen ? "zen" : ""} ${remaining !== null ? "has-session" : ""}`}>
+    <main className={`sanctuary weather-${weather} ${zen ? "zen" : ""} ${timerVisible ? "has-session" : ""} ${showTasks ? "has-tasks" : ""}`}>
       <Landscape
         quality={display.quality}
         weather={weather}
@@ -411,6 +502,7 @@ export default function Sanctuary() {
         onTimeUpdate={() => setElapsed(audio.current?.currentTime || 0)}
         onLoadedMetadata={() => setDuration(audio.current?.duration || 0)}
         onError={() => {
+          if (!audio.current?.error || audio.current.error.code === 1) return;
           setPlaying(false);
           notify(
             "Этот аудиофайл не удалось открыть. Выбери другой формат или трек.",
@@ -429,7 +521,9 @@ export default function Sanctuary() {
               тихая высота<small>МЕСТО ДЛЯ ТВОИХ МЫСЛЕЙ</small>
             </span>
           </button>
+
           <div className="header-actions">
+            <button className={`sound-access ${mixer.running ? "sound-active" : ""}`} title="Белый шум и звуки природы" aria-label="Белый шум и звуки природы" onClick={() => { setSettingsSection("sound"); setPanel("atmosphere"); }}><AudioLines /><span>Белый шум</span></button>
             <button
               onClick={() => { setSettingsSection("scene"); setPanel("atmosphere"); }}
               aria-label="Настроить атмосферу"
@@ -461,7 +555,7 @@ export default function Sanctuary() {
                 <br />
                 <i>Ближе к себе.</i>
               </h1>
-              <p>
+              <p className="intro-description">
                 Горы никуда не спешат.
                 <br />
                 Ты тоже можешь идти в своём ритме.
@@ -472,7 +566,7 @@ export default function Sanctuary() {
               </button>
             </section>
             <div className="scene-caption">
-              <span>01 / АЛЬПИЙСКАЯ ДОЛИНА</span>
+              <span>АЛЬПИЙСКАЯ ДОЛИНА</span>
               <span>
                 {weather === "sunset"
                   ? "Последний свет на вершинах"
@@ -547,8 +641,8 @@ export default function Sanctuary() {
               {track.name}
               <small>
                 {builtins.some((t) => t.id === track.id)
-                  ? "Музыка для фокуса"
-                  : "Моя музыка"}{" "}
+                  ? "Горный плейлист"
+                  : track.group === "mymusic" ? "Музыка для фокуса" : "Моя музыка"}{" "}
                 · {playing ? "играет" : "на паузе"}
               </small>
             </span>
@@ -617,55 +711,95 @@ export default function Sanctuary() {
             </div>
             <button
               className="library-button"
-              onClick={() => { setSettingsSection("sound"); setPanel("atmosphere"); }}
+              onClick={() => setPanel("music")}
             >
-              <Volume2 />
-              Белый шум
+              <Music2 />
+              Плейлисты
             </button>
           </div>
         </footer>
         <div className="bottom-line">
-          <span>Никуда не торопись. Просто продолжай.</span>
-          <button onClick={() => { setSettingsSection("focus"); setPanel("atmosphere"); }}>
+          <button onClick={openTimer}>
             <Timer />
             {remaining !== null
               ? `${focusTime(remaining)} ${timerRunning ? "· фокус" : "· пауза"}`
               : "Таймер фокуса"}
           </button>
+          <button onClick={openTasks}><ListTodo />Задачи на сегодня</button>
           <span>СТРЕЛКИ — ВЫБОР · ENTER — ДЕЙСТВИЕ</span>
         </div>
       </div>
-      {remaining !== null && (
-        <div
-          className="session-clock"
-          role="timer"
-          aria-label="Осталось времени в сессии"
-        >
-          <span>
-            {remaining === 0
-              ? "Сессия завершена"
-              : timerRunning
-                ? "Время для себя"
-                : "Сессия на паузе"}
-          </span>
-          <strong>{focusTime(remaining)}</strong>
-          <button
-            onClick={startTimer}
-            aria-label={
-              timerRunning ? "Приостановить сессию" : "Продолжить сессию"
-            }
-          >
-            {timerRunning ? <Pause /> : <Play />}
-          </button>
-          <button
-            onClick={cancelTimer}
-            aria-label="Убрать сессию"
-            title="Убрать сессию"
-          >
-            <X />
-          </button>
-        </div>
-      )}
+      <div ref={focusWidgets} className={`focus-widgets ${timerExpanded && timerVisible && !zen ? "is-configuring-timer" : ""}`}>
+        {timerVisible && <section ref={timerCard} inert={timerClosing} onAnimationEnd={event => { if (event.target === event.currentTarget && event.animationName === "floating-depart") { setTimerVisible(false); setTimerClosing(false); } }} className={`timer-card floating-card ${timerClosing ? "is-closing" : ""}`} aria-label="Таймер фокуса" onKeyDown={event => { if (event.key === "Escape" && !zen) { event.stopPropagation(); setTimerClosing(true); } }}>
+          <div className="task-card-heading window-drag-handle" {...timerDragHandle} title="Перетащи окно за заголовок · двойной щелчок возвращает на место"><span><Timer />Таймер фокуса</span><button className="floating-close" aria-label="Закрыть таймер" onClick={() => setTimerClosing(true)}><X /></button></div>
+          <div className="timer-face">
+            <button className="timer-display" onClick={() => setTimerExpanded(!timerExpanded)} aria-label="Настроить время таймера" aria-expanded={timerExpanded && !zen}>
+              <strong role="timer">{focusTime(remaining ?? timerLength * 60)}</strong>
+              <small>{remaining === 0 ? "Сессия завершена" : timerRunning ? "Время для себя" : remaining !== null ? "На паузе" : "В своём ритме"}</small>
+            </button>
+            <button className="timer-play" aria-label={timerRunning ? "Приостановить сессию" : "Начать сессию"} onClick={() => { startTimer(); setTimerExpanded(false); }}>{timerRunning ? <Pause /> : <Play />}</button>
+          </div>
+          {timerExpanded && !zen && <div className="timer-options">
+              <div className="atmosphere-grid">
+                {[25, 50, 90].map((n) => (
+                  <button
+                    key={n}
+                    className={timerLength === n ? "chosen" : ""}
+                    onClick={() => {
+                      setTimerLength(n);
+                      setRemaining(null);
+                      setTimerRunning(false);
+                    }}
+                  >
+                    {n} мин
+                  </button>
+                ))}
+              </div>
+              <form
+                className="focus-duration"
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  const value = Number(
+                    new FormData(event.currentTarget).get("focusMinutes"),
+                  );
+                  if (!validFocusMinutes(value)) return;
+                  setTimerLength(value);
+                  cancelTimer();
+                }}
+              >
+                <label htmlFor="focus-minutes">Своё время, в минутах</label>
+                <div>
+                  <input
+                    id="focus-minutes"
+                    key={timerLength}
+                    name="focusMinutes"
+                    type="number"
+                    min={5}
+                    max={1440}
+                    step={1}
+                    required
+                    defaultValue={timerLength}
+                  />
+                  <button type="submit">Выбрать</button>
+                </div>
+              </form>
+              <button className="primary" onClick={() => { startTimer(); setTimerExpanded(false); }}>
+                {timerRunning ? <Pause /> : <Play />}
+                {timerRunning ? "Пауза" : "Начать сессию"}
+              </button>
+              {remaining !== null && (
+                <button onClick={cancelTimer}>
+                  <X />
+                  Убрать сессию
+                </button>
+              )}
+              <p className="small-copy">
+                В конце музыка остановится. Можно слушать без таймера.
+              </p>
+          </div>}
+        </section>}
+        {showTasks && <TaskCard model={tasks} zen={zen} onClose={() => setTasksVisible(false)} />}
+      </div>
       {zen && (
         <button className="zen-return" onClick={() => setZen(false)}>
           <Mountain />
@@ -686,11 +820,15 @@ export default function Sanctuary() {
           if (!open) setPanel(null);
         }}
       >
-        <SheetContent className="detail-panel">
+        <SheetContent className="detail-panel" showCloseButton={false}>
           <SheetHeader>
-            <SheetTitle>
-              {panel === "music" ? "Твоя музыка" : "Атмосфера"}
-            </SheetTitle>
+            <SheetClose className="settings-close" aria-label="Закрыть настройки"><X /></SheetClose>
+            <div className="settings-heading-row">
+              <SheetTitle>
+                {panel === "music" ? "Твоя музыка" : "Настройки"}
+              </SheetTitle>
+              {panel !== "music" && <span className="settings-projects">Больше проектов: <a href="https://t.me/RiabchikoD" target="_blank" rel="noopener noreferrer">@RiabchikoD</a></span>}
+            </div>
             <SheetDescription>
               {panel === "music"
                 ? "Звук, с которым легче остаться в потоке."
@@ -705,8 +843,10 @@ export default function Sanctuary() {
                   onClick={() => setPlaylist("ambient")}
                 >
                   <Headphones />
-                  Музыка для фокуса <span>{allTracks.length}</span>
+                  Горный плейлист <span>{builtins.length}</span>
                 </button>
+                <button className={playlist === "mymusic" ? "chosen" : ""} onClick={() => setPlaylist("mymusic")}><Music2 />Музыка для фокуса<span>{tracks.filter(t => t.group === "mymusic").length}</span></button>
+                {tracks.some(t => t.group === "secret") && <button className={playlist === "secret" ? "chosen" : ""} onClick={() => setPlaylist("secret")}><Headphones />Expedition 33<span>{tracks.filter(t => t.group === "secret").length}</span></button>}
                 {state.playlists.map((p) => (
                   <button
                     key={p.id}
@@ -742,13 +882,13 @@ export default function Sanctuary() {
               </form>
               <h3>
                 {playlist === "ambient"
-                  ? "Музыка для фокуса"
-                  : currentList?.name}
+                  ? "Горный плейлист"
+                  : playlist === "mymusic" ? "Музыка для фокуса" : playlist === "secret" ? "Expedition 33" : currentList?.name}
               </h3>
               <p className="small-copy">
                 {playlist === "ambient"
                   ? "Девять оригинальных композиций без вокала: клавиши, мягкий ритм, эмбиент."
-                  : "Порядок треков можно менять стрелками."}
+                  : currentList ? "Порядок треков можно менять стрелками. Плейлисты общие для устройств с одним IP." : "Выбери любую композицию. Плеер продолжит этот плейлист."}
               </p>
               {queue.length === 0 && (
                 <div className="empty-state">
@@ -785,7 +925,7 @@ export default function Sanctuary() {
                     {playing && track.id === t.id ? <Volume2 /> : <Play />}
                     <span>
                       {t.name}
-                      <small>{t.subtitle || "Твоя загрузка"}</small>
+                      <small>{t.subtitle || "Музыка"}</small>
                     </span>
                   </button>
                   {currentList && (
@@ -832,9 +972,9 @@ export default function Sanctuary() {
           {panel === "atmosphere" && (
             <>
             <nav className="settings-nav" aria-label="Разделы настроек">
-              {[["scene", "Пейзаж"], ["sound", "Белый шум"], ["focus", "Фокус"], ["screen", "Экран"]].map(([id, label]) => <button key={id} aria-pressed={settingsSection === id} onClick={() => setSettingsSection(id)}>{label}</button>)}
+              {[["scene", "Пейзаж"], ["sound", "Белый шум"], ["screen", "Экран"]].map(([id, label]) => <button key={id} aria-pressed={settingsSection === id} onClick={() => setSettingsSection(id)}>{label}</button>)}
             </nav>
-            <div className="panel-body settings-body" key={settingsSection}>
+            <div ref={settingsBody} className="panel-body settings-body" key={settingsSection}>
               {settingsSection === "screen" && <DisplaySettings display={display} weather={weather} season={localWeather.season} zen={zen} />}
               {settingsSection === "sound" && <NoiseMixer mixer={mixer} />}
               <section hidden={settingsSection !== "scene"}>
@@ -868,7 +1008,7 @@ export default function Sanctuary() {
                   <Repeat />
                   <span>
                     Меняется сам
-                    <small>Свет и погода плавно сменяют друг друга</small>
+                    <small>Пейзажи плавно сменяют друг друга</small>
                   </span>
                 </button>
               </div>
@@ -886,7 +1026,7 @@ export default function Sanctuary() {
                 }}
               >
                 <label htmlFor="weather-minutes">
-                  Менять погоду каждые, мин
+                  Менять пейзаж каждые, мин
                 </label>
                 <div>
                   <input
@@ -935,74 +1075,12 @@ export default function Sanctuary() {
                   );
                 })}
               </div>
-              <LocalWeatherPicker
+              {!githubPages && <LocalWeatherPicker
                 weather={localWeather}
                 onActivate={() => setAutoWeather(false)}
-              />
+              />}
               </section>
-              <section hidden={settingsSection !== "focus"}>
-              <h3>Сессия фокуса</h3>
-              <div className="atmosphere-grid">
-                {[25, 50, 90].map((n) => (
-                  <button
-                    key={n}
-                    className={timerLength === n ? "chosen" : ""}
-                    onClick={() => {
-                      setTimerLength(n);
-                      setRemaining(null);
-                      setTimerRunning(false);
-                    }}
-                  >
-                    {n} мин
-                  </button>
-                ))}
-              </div>
-              <form
-                className="focus-duration"
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  const value = Number(
-                    new FormData(event.currentTarget).get("focusMinutes"),
-                  );
-                  if (!validFocusMinutes(value)) return;
-                  setTimerLength(value);
-                  cancelTimer();
-                }}
-              >
-                <label htmlFor="focus-minutes">Своё время, в минутах</label>
-                <div>
-                  <input
-                    id="focus-minutes"
-                    key={timerLength}
-                    name="focusMinutes"
-                    type="number"
-                    min={5}
-                    max={525600}
-                    step={1}
-                    required
-                    defaultValue={timerLength}
-                  />
-                  <button type="submit">Выбрать</button>
-                </div>
-              </form>
-              <div className="timer-number">
-                {focusTime(remaining ?? timerLength * 60)}
-              </div>
-              <button className="primary" onClick={startTimer}>
-                {timerRunning ? <Pause /> : <Play />}
-                {timerRunning ? "Пауза" : "Начать сессию"}
-              </button>
-              {remaining !== null && (
-                <button onClick={cancelTimer}>
-                  <X />
-                  Убрать сессию
-                </button>
-              )}
-              <p className="small-copy">
-                В конце музыка остановится. Можно слушать без таймера.
-              </p>
-              </section>
-              <button
+              {settingsSection === "scene" && <button
                 className="settings-zen"
                 onClick={() => {
                   enterZen();
@@ -1010,12 +1088,21 @@ export default function Sanctuary() {
               >
                 <EyeOff />
                 Скрыть весь интерфейс
-              </button>
+              </button>}
               <p className="small-copy">
                 Стрелки и Enter для пульта. Esc или кнопка «Назад» возвращает
                 управление. Выбор света вручную включает фиксированный режим.
                 Движение приглушено при системной настройке уменьшения анимации.
               </p>
+            </div>
+            <div className="settings-scroll" aria-label="Прокрутка настроек">
+              <span>↑ ↓ выбор · ← → громкость</span>
+              <button aria-label="Прокрутить настройки вверх" onClick={() => {
+                if (settingsBody.current) settingsBody.current.scrollTop -= settingsBody.current.clientHeight * 0.75;
+              }}><ArrowUp />Вверх</button>
+              <button aria-label="Прокрутить настройки вниз" onClick={() => {
+                if (settingsBody.current) settingsBody.current.scrollTop += settingsBody.current.clientHeight * 0.75;
+              }}><ArrowDown />Вниз</button>
             </div>
             </>
           )}

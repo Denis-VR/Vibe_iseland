@@ -80,7 +80,7 @@ test("portable server protects, persists and streams library without cloud servi
       body: audio,
     });
     assert.equal(response.status, 405);
-    assert.deepEqual(await (await req("/api/tracks")).json(), []);
+    assert.equal((await (await req("/api/tracks")).json()).filter(t => !t.group).length, 0);
     response = await req("/audio/dawn.mp3", {
       headers: { Range: "bytes=10-99" },
     });
@@ -153,7 +153,7 @@ test("portable server protects, persists and streams library without cloud servi
     analytics.close();
     const restored = await (await req("/api/state")).json();
     assert.deepEqual(restored.state, state);
-    assert.deepEqual(await (await req("/api/tracks")).json(), []);
+    assert.equal((await (await req("/api/tracks")).json()).filter(t => !t.group).length, 0);
     for (const name of [
       "dawn",
       "day",
@@ -219,4 +219,30 @@ test("public visitors have isolated playlists and secure opaque cookies", async 
     if (running?.child.exitCode === null) await stop(running.child);
     await rm(dir, { recursive: true, force: true });
   }
+});
+
+test('public Expedition collection streams without unlocking and persists in IP playlists', async () => {
+  const dir = await mkdtemp(join(tmpdir(), 'vibe-ip-public-'));
+  let running;
+  try {
+    const env = {PUBLIC_SITE:'1',PLAYLIST_BY_IP:'1',TRUST_PROXY:'1'};
+    running = await start(dir, env);
+    const req = (path, options={}, ip='192.0.2.1') => fetch(running.url+path,{...options,headers:{Authorization:auth,'X-Real-IP':ip,...options.headers}});
+    const list=await (await req('/api/tracks')).json();
+    assert.equal(list.filter(t=>t.group==='mymusic').length,14);
+    const expedition=list.filter(t=>t.group==='secret');
+    assert.equal(expedition.length,40);
+    const state={playlists:[{id:'mine',name:'Общий IP',tracks:[expedition[0].id]}]};
+    assert.equal((await req('/api/state',{method:'PUT',body:JSON.stringify({state,revision:0})})).status,200);
+    assert.deepEqual((await (await req('/api/state')).json()).state,state);
+    assert.notDeepEqual((await (await req('/api/state',{},'192.0.2.2')).json()).state,state);
+    assert.equal((await req('/audio/secret/test.mp3')).status,404);
+    assert.equal((await req('/api/secret/unlock',{method:'POST',body:'{}'})).status,404);
+    const audio=await req(expedition[0].url,{headers:{Range:'bytes=0-31'}});
+    assert.equal(audio.status,206); assert.equal((await audio.arrayBuffer()).byteLength,32);
+    await stop(running.child);
+    running=await start(dir,env);
+    assert.deepEqual((await (await req('/api/state')).json()).state,state);
+    assert.equal((await req(expedition[0].url,{method:'HEAD'})).status,200);
+  } finally { if(running && running.child.exitCode===null) await stop(running.child); await rm(dir,{recursive:true,force:true}); }
 });

@@ -46,14 +46,14 @@ export const noiseChannels: { id: NoiseKind; name: string; hint: string }[] = [
   { id: "frogs", name: "Ночной пруд", hint: "Лягушки у воды" },
 ];
 export const fieldRecordings: Partial<Record<NoiseKind, string>> = {
-  fire: "/audio/nature/campfire.mp3",
-  stream: "/audio/nature/forest-stream.mp3",
-  rain: "/audio/nature/gentle-rain.mp3",
-  village: "/audio/nature/chickens.mp3",
-  sea: "/audio/nature/sea.mp3",
-  night: "/audio/nature/night.mp3",
-  crickets: "/audio/nature/crickets.mp3",
-  frogs: "/audio/nature/frogs.mp3",
+  fire: publicPath("audio/nature/campfire.mp3"),
+  stream: publicPath("audio/nature/forest-stream.mp3"),
+  rain: publicPath("audio/nature/gentle-rain.mp3"),
+  village: publicPath("audio/nature/chickens.mp3"),
+  sea: publicPath("audio/nature/sea.mp3"),
+  night: publicPath("audio/nature/night.mp3"),
+  crickets: publicPath("audio/nature/crickets.mp3"),
+  frogs: publicPath("audio/nature/frogs.mp3"),
 };
 export class NoiseEngine {
   context: AudioContext;
@@ -283,3 +283,4 @@ export function createNoiseSamples(
   }
   return samples.slice(fade);
 }
+import { publicPath } from "./public-path.ts";

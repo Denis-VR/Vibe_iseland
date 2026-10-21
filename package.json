@@ -9,6 +9,7 @@
     "install:ci": "node scripts/install-ci.mjs",
     "dev": "node server/index.mjs --dev",
     "build": "vite build --config vite.local.config.ts",
+    "build:pages": "GITHUB_PAGES=true VITE_GITHUB_PAGES=true npm run build",
     "start": "node server/index.mjs",
     "lint": "eslint . --ignore-pattern dist --ignore-pattern dist-local --ignore-pattern data --ignore-pattern .next",
     "db:generate": "drizzle-kit generate",

@@ -46,7 +46,7 @@ export function validFocusMinutes(value: unknown): value is number {
     typeof value === "number" &&
     Number.isInteger(value) &&
     value >= 5 &&
-    value <= 525600
+    value <= 1440
   );
 }
 export function focusTime(seconds: number) {

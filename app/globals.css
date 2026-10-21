@@ -287,11 +287,14 @@ footer > div {
 }
 .header-actions {
   display: flex;
+  align-items: center;
   gap: 10px;
 }
 .header-actions button {
   border-radius: 50%;
   width: 44px;
+  height: 44px;
+  flex-shrink: 0;
   padding: 10px;
   background: #0c202c55;
 }
@@ -893,6 +896,7 @@ pre {
   }
   .header-actions button {
     width: 37px;
+    height: 37px;
     min-height: 37px;
     padding: 8px;
   }
@@ -1540,3 +1544,220 @@ html, #root, :fullscreen::backdrop { background-color: #000; }
   .interface .player-end .library-button { padding: 8px; font-size: 12px; }
 }
 @media (max-width: 650px) { .interface .player .track-info { display: flex; } }
+
+/* Compact settings with a scroll area that remains reachable from a TV remote. */
+.detail-panel[data-slot="sheet-content"] { max-height: 100%; }
+.detail-panel [data-slot="sheet-header"] { padding: 12px 24px 10px; padding-right: 64px; }
+.detail-panel [data-slot="sheet-title"] { font-size: 24px; }
+.detail-panel [data-slot="sheet-description"] { display: none; }
+.settings-nav { padding: 8px 20px; }
+.settings-nav button { min-height: 40px; padding: 7px 8px; }
+.detail-panel .settings-body { padding: 14px 24px 20px; scroll-padding: 12px; scrollbar-gutter: stable; }
+.settings-body .mixer-heading h3 { margin: 0; font-size: 16px; }
+.settings-body .small-copy { line-height: 1.4; margin: 8px 0; }
+.settings-body .mixer-control { margin: 12px 0; }
+.settings-body .mixer-control label { margin-bottom: 8px; }
+.settings-body .mixer-control small { margin-top: 6px; }
+.settings-body .noise-channel { padding: 10px 0; gap: 7px 10px; }
+.settings-body .noise-channel small { margin-top: 2px; }
+.settings-body button { min-height: 40px; }
+.settings-body .slider-wrap { padding-block: 7px; }
+.settings-body [role="slider"]:focus-visible { outline: 3px solid #f5cd8f; outline-offset: 5px; }
+.settings-scroll { display: flex; align-items: center; justify-content: flex-end; gap: 10px; flex-shrink: 0; padding: 8px 20px; border-top: 1px solid #ffffff26; background: #11212a; }
+.settings-scroll span { margin-right: auto; font-size: 12px; color: #afc0c7; }
+.settings-scroll button { display: flex; align-items: center; gap: 6px; padding: 8px 12px; min-height: 40px; font-size: 14px; }
+.settings-scroll svg { width: 16px; height: 16px; }
+@media (max-width: 500px) {
+  .settings-scroll span { display: none; }
+  .settings-scroll { justify-content: space-between; }
+  .detail-panel .settings-body { padding-inline: 16px; }
+}
+
+/* Keep the close action inside the header instead of over the section tabs. */
+.detail-panel [data-slot="sheet-header"] { position: relative; min-height: 58px; justify-content: center; padding-right: 72px; }
+.detail-panel .settings-close { position: absolute; top: 50%; right: 20px; transform: translateY(-50%); width: 38px; height: 38px; min-height: 38px; padding: 8px; display: flex; align-items: center; justify-content: center; background: #ffffff06; border: 1px solid #ffffff20; border-radius: 12px; }
+.settings-close svg { width: 18px; height: 18px; }
+/* A tight shadow preserves letter edges; a faint soft shadow separates them
+   from bright snow and clouds without adding a visible panel. */
+.interface .intro-description,
+.interface .scene-caption,
+.interface .eyebrow,
+.interface .quiet-link {
+  text-shadow: 0 1px 2px #07141de6, 0 2px 8px #07141d80;
+}
+.interface .intro-description { color: #e0e4e5; }
+.interface .scene-caption span:first-child { color: #ecd5b3; }
+.interface .scene-caption span:last-child { color: #f0eee8; }
+
+/* Share the headline gutter with the lower controls on every screen. */
+.interface { --content-gutter: 4vw; }
+.interface > header { padding-left: var(--content-gutter); padding-right: var(--content-gutter); }
+.interface .intro { padding-left: var(--content-gutter); padding-right: var(--content-gutter); }
+.interface .lower-row { padding-left: var(--content-gutter); padding-right: var(--content-gutter); }
+.interface .player, .interface .bottom-line { margin-left: var(--content-gutter); margin-right: var(--content-gutter); }
+@media (max-width: 700px) { .interface { --content-gutter: 5vw; } }
+
+/* Independent, rounded windows over the landscape. */
+
+
+.header-actions .sound-active { color: #f2d4a1; background: #f2d4a114; }
+.bottom-line { justify-content: flex-start; }
+.bottom-line > span:last-child { margin-left: auto; }
+.bottom-line button { gap: 7px; }
+.focus-widgets { position: absolute; top: 108px; right: 4vw; z-index: 5; width: clamp(300px, 28vw, 390px); display: flex; flex-direction: column; gap: 12px; max-height: calc(100% - 210px); pointer-events: none; }
+.floating-card { pointer-events: auto; min-height: 0; overflow: hidden; padding: 18px 20px; border: 1px solid #fff2d930; border-radius: 24px; background: linear-gradient(130deg, #203440bf, #142731a8); color: #fff4dc; backdrop-filter: blur(22px); box-shadow: 0 12px 40px #09192325; animation: task-arrive .3s ease both; }
+.task-card { display: flex; flex-direction: column; transition: background .7s, padding .7s; }
+.task-card-heading { flex-shrink: 0; display: flex; align-items: center; gap: 9px; font-size: 12px; letter-spacing: .035em; }
+.task-card-heading > span:first-child { display: flex; align-items: center; gap: 9px; margin-right: auto; }
+.task-card-heading svg { width: 16px; height: 16px; }
+.task-count { font-size: 11px; color: #cfcebf; font-variant-numeric: tabular-nums; }
+.floating-card .floating-close { flex-shrink: 0; width: 30px; height: 30px; min-height: 30px; border: 0; border-radius: 50%; padding: 6px; color: #d0d7d5; background: transparent; opacity: .6; }
+.floating-close:hover, .floating-close:focus-visible { opacity: 1; background: #ffffff12; }
+.task-list { list-style: none; padding: 0; margin: 0; }
+.task-list li { display: flex; align-items: center; gap: 9px; padding: 10px 0; border-top: 1px solid #fff2d912; transition: background .18s; }
+.task-list li:first-child { border-top: 0; }
+.task-check { flex: 0 0 20px; width: 20px; height: 20px; min-height: 20px; padding: 2px; border: 1px solid #ecd8b573; border-radius: 50%; background: transparent; color: #f0d4ab; }
+.task-check svg { width: 14px; height: 14px; }
+.task-active .task-check { box-shadow: 0 0 0 3px #ecd8b50a; border-color: #f0d4ab; }
+.task-text { border: 0; border-radius: 0; display: block; flex: 1; min-width: 0; padding: 0; text-align: left; background: transparent; font-size: 14px; line-height: 1.5; color: inherit; overflow-wrap: anywhere; }
+.task-text small { display: block; font-size: 10px; color: #dfc396; margin-top: 4px; }
+.task-done .task-text { text-decoration: line-through; opacity: .45; }
+.task-delete, .task-grip { flex-shrink: 0; border: 0; min-height: 32px; height: 32px; width: 24px; padding: 4px; background: transparent; color: inherit; opacity: .3; }
+.task-delete svg, .task-grip svg { width: 14px; height: 14px; }
+.task-delete:hover, .task-delete:focus-visible, .task-grip:hover, .task-grip:focus-visible { opacity: 1; }
+.task-grip { width: 16px; padding: 0; touch-action: none; cursor: grab; }
+.task-dragging { background: #f0d4ab12; border-radius: 10px; }
+.task-dragging .task-grip { cursor: grabbing; opacity: 1; }
+.task-form { display: flex; flex-shrink: 0; gap: 8px; margin: 14px 0 8px; }
+.task-form input { width: 0; flex: 1; min-width: 0; padding: 10px 12px; border: 1px solid #fff2d920; border-radius: 12px; background: #0b1d2540; font-size: 13px; color: #fff4dc; }
+.task-form input::placeholder { color: #b6c2c3; }
+.task-form button { flex-shrink: 0; width: 40px; min-height: 40px; padding: 8px; border: 1px solid #fff2d925; background: #fff2d909; }
+.task-form button:disabled { opacity: .35; cursor: default; }
+.task-form svg { width: 18px; height: 18px; }
+.task-overview, .task-current { display: grid; min-height: 0; transition: grid-template-rows .65s ease, opacity .5s ease; }
+.task-overview { grid-template-rows: 1fr; opacity: 1; }
+.task-current { flex-shrink: 0; grid-template-rows: 0fr; opacity: 0; }
+.task-overview > div, .task-current > div { min-height: 0; overflow: hidden; }
+.task-expanded { display: flex; flex-direction: column; }
+.task-scroll { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; scrollbar-color: #d8c4a44a transparent; padding-right: 3px; border-radius: 10px; }
+.task-hint { flex-shrink: 0; font-size: 10px; color: #afbdc0; margin: 12px 0 0; }
+.task-empty { color: #c7d0ce; font-size: 13px; line-height: 1.8; padding: 12px 2px; }
+.task-card-quiet .task-overview { grid-template-rows: 0fr; opacity: 0; }
+.task-card-quiet .task-current { grid-template-rows: 1fr; opacity: 1; }
+.current-task-row { display: flex; gap: 12px; align-items: center; animation: task-arrive .5s ease both; }
+.task-current p { flex: 1; min-width: 0; font-size: 16px; line-height: 1.55; margin: 16px 0 2px; overflow-wrap: anywhere; }
+.current-task-row .task-check, .current-task-row .task-delete { margin-top: 14px; }
+.timer-card { flex-shrink: 0; max-height: min(440px, 54svh); overflow-y: auto; scrollbar-width: thin; scrollbar-color: #d8c4a44a transparent; }
+.timer-face { display: flex; align-items: center; gap: 16px; padding-top: 6px; }
+.timer-display { flex: 1; min-width: 0; display: flex; flex-direction: column; align-items: flex-start; gap: 5px; padding: 0; border: 0; background: transparent; color: inherit; }
+.timer-display strong { font: 400 clamp(32px, 3.5vw, 52px)/1.15 Georgia, serif; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.timer-display small { font-size: 11px; color: #bfc9c8; }
+.timer-play { width: 42px; height: 42px; padding: 10px; border-radius: 50%; background: #fff2d912; color: #f2d8b4; }
+.timer-options { margin-top: 20px; border-top: 1px solid #fff2d916; padding-top: 16px; }
+.timer-options .atmosphere-grid { margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; }
+.timer-options .atmosphere-grid button { padding: 8px; font-size: 12px; }
+.timer-options .chosen { background: #dcc096; color: #20333a; }
+.timer-options .focus-duration { margin: 16px 0; }
+.timer-options .focus-duration label { font-size: 12px; color: #c6ceca; }
+.timer-options .focus-duration input { flex: 1; min-width: 0; width: 80px; }
+.timer-options .focus-duration input:focus { outline: none; border-color: #d8bb8e; box-shadow: inset 0 0 0 2px #d8bb8e; }
+.timer-options .focus-duration button { font-size: 12px; padding: 8px 12px; }
+.timer-options .primary { width: 100%; justify-content: center; background: #dcc096; color: #20333a; }
+.timer-options .small-copy { margin-bottom: 0; font-size: 11px; line-height: 1.6; }
+@keyframes task-arrive { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+.zen .focus-widgets { max-height: calc(100% - 210px); }
+@media (max-width: 700px) {
+  .interface .bottom-line { justify-content: center; gap: 22px; }
+  .focus-widgets { top: 78px; right: 5vw; width: 90vw; max-height: calc(100% - 155px); gap: 10px; }
+  .floating-card { padding: 12px 16px; border-radius: 22px; }
+  .task-list li { padding: 8px 0; }
+  .timer-card { max-height: 43svh; }
+  .timer-display strong { font-size: 36px; }
+  .has-tasks .intro h1, .has-tasks .intro > p { visibility: hidden; }
+  .has-tasks .intro .quiet-link { margin-top: auto; }
+  .focus-widgets:has(.timer-card) .task-card:not(.task-card-quiet) { min-height: 180px; }
+}
+@media (max-height: 600px) and (min-width: 701px) { .focus-widgets { top: 70px; max-height: calc(100% - 105px); flex-direction: row; width: min(680px, 85vw); align-items: flex-start; } .focus-widgets > * { width: 50%; max-height: calc(100svh - 110px); } }
+@media (prefers-reduced-motion: reduce) { .task-overview, .task-current, .task-card { transition: none; } .current-task-row, .floating-card { animation: none; } }
+/* Keep both windows useful: only their contents scroll, never the rounded shell. */
+.timer-card { display: flex; flex-direction: column; overflow: hidden; }
+.timer-face { flex-shrink: 0; }
+.timer-options { min-height: 0; overflow-y: auto; overscroll-behavior: contain; scrollbar-width: thin; padding-right: 3px; }
+.focus-widgets:has(.task-card) .timer-card { max-height: max(180px, min(440px, calc(100svh - 430px))); }
+.focus-widgets .task-card:not(.task-card-quiet) { min-height: 210px; }
+@media (max-width: 700px) { .focus-widgets:has(.task-card) .timer-card { max-height: max(170px, min(380px, calc(100svh - 390px))); } }
+@media (max-width: 700px) {
+  .has-tasks .intro .quiet-link, .has-session .intro .quiet-link { position: absolute; top: 64px; left: 6vw; z-index: 6; margin: 0; min-height: 36px; font-size: 12px; }
+  .focus-widgets { top: 112px; max-height: calc(100% - 195px); }
+  .focus-widgets:has(.task-card) .timer-card { max-height: max(150px, min(350px, calc(100svh - 440px))); }
+}
+@media (max-width: 700px) and (max-height: 650px) {
+  .focus-widgets .task-card:not(.task-card-quiet) { min-height: 180px; }
+}
+
+.header-actions .sound-access { width: auto; height: 44px; border-radius: 12px; flex-direction: row; justify-content: center; padding: 10px 14px; gap: 8px; }
+.sound-access span { display: block; font-size: 12px; letter-spacing: 0; white-space: nowrap; }
+.header-actions .sound-access svg { width: 19px; height: 19px; }
+.task-form input:focus { outline: none; border-color: #d8bb8e9c; box-shadow: inset 0 0 0 1px #d8bb8e55; }
+.task-list { position: relative; }
+.task-list li { position: relative; }
+.task-list .task-dragging { z-index: 2; background: #30434c; box-shadow: 0 5px 18px #07192340; user-select: none; }
+.task-grip { width: 22px; flex-basis: 22px; }
+.floating-card.is-closing { pointer-events: none; animation: floating-depart 260ms ease forwards; }
+@keyframes floating-depart { from { opacity: 1; transform: translateY(0) scale(1); } to { opacity: 0; transform: translateY(8px) scale(.98); } }
+@media (max-width: 700px) {
+  .header-actions .sound-access { height: 37px; min-height: 37px; padding: 8px; border-radius: 10px; gap: 6px; }
+  .sound-access span { font-size: 11px; }
+}
+@media (prefers-reduced-motion: reduce) { .floating-card.is-closing { animation-duration: 1ms; } }
+
+/* Reserve the actual space above scene captions and lower controls. */
+.sanctuary .focus-widgets { max-height: var(--focus-space, calc(100% - 360px)); }
+.sanctuary .focus-widgets .floating-card { min-height: 0; max-height: var(--focus-space, 100%); }
+.sanctuary .focus-widgets:has(.task-card) .timer-card { flex-shrink: 1; max-height: calc(var(--focus-space, 400px) * .48); }
+.sanctuary .focus-widgets .task-card { flex-shrink: 1; min-height: 180px; }
+.sanctuary .focus-widgets .task-card.task-card-quiet {
+  flex: 0 0 auto;
+  min-height: 0;
+  max-height: none;
+  padding-top: 12px;
+  padding-bottom: 12px;
+}
+
+/* The clock face must never participate in proportional shrinking. */
+.sanctuary .focus-widgets .timer-card {
+  flex: 0 0 auto;
+  min-height: 150px;
+  max-height: var(--focus-space, 440px);
+}
+.timer-options { flex: 1 1 auto; padding-bottom: 4px; }
+.timer-options > * { flex-shrink: 0; }
+
+@media (max-width: 700px) {
+  .sanctuary .focus-widgets .timer-card { min-height: 140px; }
+}
+.sanctuary .focus-widgets:has(.task-card) .timer-card {
+  flex: 0 0 auto;
+  max-height: var(--focus-space, 440px);
+}
+
+/* Default window position stays close to the right edge. */
+@media (min-width: 701px) {
+  .sanctuary .focus-widgets {
+    right: 4vw;
+    width: clamp(300px, 28vw, 390px);
+    flex-direction: column;
+  }
+  .sanctuary .focus-widgets > * { width: 100%; }
+}
+.window-drag-handle { cursor: grab; touch-action: none; user-select: none; }
+.window-dragging .window-drag-handle { cursor: grabbing; }
+.floating-card { position: relative; }
+.floating-card.window-dragging { z-index: 10; }
+.window-drag-handle .floating-close { cursor: pointer; }
+
+.settings-heading-row { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.settings-projects { color: #a5b9c4; font-size: 12px; line-height: 1.5; }
+.settings-projects a { color: #e3c59a; text-decoration: none; white-space: nowrap; }
+.settings-projects a:hover { text-decoration: underline; }
+.settings-projects a:focus-visible { outline: 2px solid #e3c59a; outline-offset: 3px; border-radius: 3px; }

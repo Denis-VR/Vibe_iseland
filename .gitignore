@@ -53,3 +53,9 @@ next-env.d.ts
 /.tools/
 /output/upscale/
 /output/nature-new/
+
+/private/audio/
+/public/audio/mymusic/
+/output/expedition/
+/output/telegram/
+/output/SITE_AUDIT_2026-10-01.md
