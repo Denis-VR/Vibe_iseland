@@ -4,7 +4,7 @@
 
 **Место для твоих мыслей.** Живые горные пейзажи, музыка и звуки природы для фокуса и отдыха — в браузере компьютера или Smart TV.
 
-[**vibeisland**](https://denis-vr.github.io/Vibe_iseland/) · [Запуск](#-запуск) · [Как устроено](#-как-устроено) · [Подробная документация](docs/DETAILS.md)
+[**🌐 Открыть демо**](https://denis-vr.github.io/Vibe_iseland/) · [Запуск](#-запуск) · [Как устроено](#-как-устроено) · [Подробная документация](docs/DETAILS.md)
 
 ![React](https://img.shields.io/badge/React%2019-20232A?style=flat-square&logo=react&logoColor=61DAFB) ![TypeScript](https://img.shields.io/badge/TypeScript-3178C6?style=flat-square&logo=typescript&logoColor=white) ![Vite](https://img.shields.io/badge/Vite-646CFF?style=flat-square&logo=vite&logoColor=white) ![Tailwind](https://img.shields.io/badge/Tailwind%204-06B6D4?style=flat-square&logo=tailwindcss&logoColor=white) ![Node.js](https://img.shields.io/badge/Node.js%2024-339933?style=flat-square&logo=nodedotjs&logoColor=white) ![SQLite](https://img.shields.io/badge/node%3Asqlite-003B57?style=flat-square&logo=sqlite&logoColor=white) ![Web Audio](https://img.shields.io/badge/Web%20Audio%20API-FF6F00?style=flat-square) [![License: MIT](https://img.shields.io/badge/License-MIT-2ea44f?style=flat-square)](LICENSE)
 
@@ -74,7 +74,7 @@ npm start          # http://localhost:4173
 
 Workflow `.github/workflows/pages.yml` собирает сайт для адреса проекта `https://denis-vr.github.io/Vibe_iseland/` и публикует папку `dist-local` после push в `main`. В настройках репозитория выбери **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 
-На Pages доступны сцены, встроенная музыка, звуковой микшер, таймер и локальные плейлисты (сохраняются только в браузере). Серверные функции, включая загрузку своих треков и общую библиотеку, требуют серверной версии. GitHub Pages не меняет домен `vibeisland.fun`.
+На Pages доступны сцены, встроенная музыка, звуковой микшер, таймер и локальные плейлисты (сохраняются только в браузере). Серверные функции, включая загрузку своих треков и общую библиотеку, требуют серверной версии.
 
 ## 🧩 Как устроено
 
