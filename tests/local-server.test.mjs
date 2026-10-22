@@ -154,22 +154,6 @@ test("portable server protects, persists and streams library without cloud servi
     const restored = await (await req("/api/state")).json();
     assert.deepEqual(restored.state, state);
     assert.equal((await (await req("/api/tracks")).json()).filter(t => !t.group).length, 0);
-    for (const name of [
-      "dawn",
-      "day",
-      "fog",
-      "rain",
-      "sunset",
-      "night",
-      "clouds",
-      "winter",
-      "spring",
-      "autumn",
-    ])
-      assert.equal(
-        (await req("/scenes/" + name + ".webp", { method: "HEAD" })).status,
-        200,
-      );
   } finally {
     if (running?.child.exitCode === null) await stop(running.child);
     await rm(dir, { recursive: true, force: true });

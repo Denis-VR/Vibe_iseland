@@ -48,18 +48,18 @@ export function DisplaySettings({ display, weather, season, zen }: { display: Re
       const root = document.documentElement as FullElement;
       if (!pending.current) pending.current = {
         id: newId(), version: "display-20260913-5",
-        quality: display.quality, sourceResolution: document.querySelector("canvas")?.dataset.sourceResolution || "loading",
+        quality: display.quality, sourceResolution: (document.querySelector(".landscape-layers") as HTMLElement | null)?.dataset.sourceResolution || "loading",
         browser: navigator.userAgent.slice(0, 512), language: navigator.language.slice(0, 40),
         screen: { width: screen.width, height: screen.height },
         viewport: { width: innerWidth, height: innerHeight },
         document: { width: root.scrollWidth, height: root.scrollHeight },
         visual: { width: window.visualViewport?.width || innerWidth, height: window.visualViewport?.height || innerHeight, scale: window.visualViewport?.scale || 1 },
-        rendered: [".sanctuary", ".landscape-layers", ".landscape-canvas"].map(selector => {
+        rendered: [".sanctuary", ".landscape-layers", ".landscape-scene"].map(selector => {
           const element = document.querySelector(selector)!;
           const rect = element.getBoundingClientRect();
           return { selector, x: rect.x, y: rect.y, width: rect.width, height: rect.height };
         }),
-        canvas: { width: (document.querySelector(".landscape-canvas") as HTMLCanvasElement).width, height: (document.querySelector(".landscape-canvas") as HTMLCanvasElement).height },
+        canvas: { width: (document.querySelector(".landscape-scene canvas") as HTMLCanvasElement).width, height: (document.querySelector(".landscape-scene canvas") as HTMLCanvasElement).height },
         pixelRatio: devicePixelRatio || 1,
         fullscreen: !!fullscreenElement(), fullscreenSupported: !!(root.requestFullscreen || root.webkitRequestFullscreen || root.msRequestFullscreen),
         touch: navigator.maxTouchPoints || 0, fit: display.fit, weather, season, zen,

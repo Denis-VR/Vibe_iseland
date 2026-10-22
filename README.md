@@ -84,7 +84,7 @@ flowchart LR
     UI -->|Web Audio| A[Синтез шумов<br/>+ записи CC0]
     UI -->|HTTP| S[Node.js сервер]
     S --> DB[(node:sqlite<br/>плейлисты, статистика)]
-    S --> FS[Аудио и<br/>изображения]
+    S --> FS[Аудио]
     UI -->|погода| OM[Open-Meteo]
 ```
 
@@ -95,7 +95,7 @@ flowchart LR
 | [`app/world.ts`](app/world.ts) | Порядок погоды, сезоны и освещение |
 | [`server/index.mjs`](server/index.mjs) | Самостоятельный HTTP-сервер без фреймворков: SQLite, Range-запросы, защита Origin |
 
-- **Без внешних зависимостей во время работы**: музыка и изображения лежат вместе с сайтом, сервер — чистый `node:http`.
+- **Без внешних зависимостей во время работы**: музыка лежит вместе с сайтом, пейзажи рисуются кодом, сервер — чистый `node:http`.
 - **Приватность**: геопозиция запрашивается только по нажатию, на погодный сервис уходит центр ближайшего города, а не точные координаты.
 - **Громкость**: все треки выровнены двухпроходным FFmpeg loudnorm до −21 LUFS.
 
@@ -117,7 +117,7 @@ node --experimental-strip-types --test tests/world.test.ts tests/noise.test.ts t
 
 - [Подробная документация](docs/DETAILS.md) — перенос на сервер, погода, таймер, статистика посещений
 - [Развёртывание: nginx, systemd, HTTPS](deploy/README.md)
-- [Источники звуков](public/audio/SOURCES.md) · [Промпты сцен](public/scenes/generation.json)
+- [Источники звуков](public/audio/SOURCES.md)
 
 ---
 

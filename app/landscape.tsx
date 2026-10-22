@@ -1,167 +1,116 @@
 "use client";
 import { useEffect, useRef } from "react";
 import { sceneResolution, type SceneQuality } from "./scene-quality";
-import { sceneAsset, lightSeason } from "./season-light";
+import { sceneAsset } from "./season-light";
 import { type Season } from "./world";
-import { publicPath } from "./public-path.ts";
+import { buildScene, type Scene } from "./vector-landscape";
 
-// A cancelled transition starts from its actual rendered frame, never a queued image.
+// The valley is painted by code at the screen's own resolution and animated softly.
+// A new scene fades in over the frame that is actually on screen; the last choice wins.
 export function Landscape({
   weather,
   quality,
   season = "summer",
   automatic,
-  onError,
 }: {
   weather: string;
   quality: SceneQuality;
   season?: Season;
   automatic: boolean;
-  onError: (s: string) => void;
+  onError?: (s: string) => void;
 }) {
-  const canvas = useRef<HTMLCanvasElement>(null);
-  const cache = useRef(new Map<string, Promise<HTMLImageElement>>());
-  const visible = useRef(false);
+  const host = useRef<HTMLDivElement>(null);
+  const current = useRef<Scene | null>(null);
+  // Every scene still on screen, oldest first, and the clean-up that removes the covered ones.
+  const alive = useRef<Scene[]>([]);
+  const cleanup = useRef(0);
   const previousQuality = useRef(quality);
   useEffect(() => {
-    let cancelled = false,
-      frame = 0;
+    const root = host.current!;
+    const reduced = matchMedia("(prefers-reduced-motion: reduce)");
     const qualityChanged = previousQuality.current !== quality;
     previousQuality.current = quality;
-    const surface = canvas.current!;
-    const initialBounds = surface.getBoundingClientRect();
-    const requested = sceneResolution(initialBounds.width, initialBounds.height, devicePixelRatio, quality);
-    const useUhd = quality === "uhd" || quality === "auto" && Math.max(requested.width, requested.height) > 1672;
-    const ctx = surface.getContext("2d")!;
-    const load = (scene: string) => {
-      const key = `${scene}:${useUhd ? "uhd" : "hd"}`;
-      if (!cache.current.has(key))
-        cache.current.set(
-          key,
-          new Promise((resolve, reject) => {
-            const img = new Image();
-            img.onload = () => resolve(img);
-            let fallback = !useUhd;
-            const standard = `${publicPath(`scenes/${scene}.webp`)}?v=${scene === "day" ? 5 : scene === "dawn" ? 4 : 3}`;
-            img.onerror = () => {
-              if (!fallback) { fallback = true; img.src = standard; return; }
-              cache.current.delete(key);
-              reject(Error("image"));
-            };
-            img.src = useUhd ? `${publicPath(`scenes/uhd/${scene}.webp`)}?v=1` : standard;
-          }),
-        );
-      return cache.current.get(key)!;
+    const fade = current.current && !qualityChanged && !reduced.matches ? (automatic ? 12000 : 1800) : 0;
+    let frame = 0, cancelled = false, lastPaint = -Infinity, size = "";
+    const make = (duration: number) => {
+      const b = root.getBoundingClientRect();
+      const r = sceneResolution(b.width, b.height, devicePixelRatio, quality);
+      size = `${r.width}x${r.height}`;
+      const scene = buildScene(r.width, r.height, weather, season);
+      const el = scene.element;
+      el.style.opacity = duration ? "0" : "1";
+      el.style.transition = `opacity ${duration}ms ease-in-out`;
+      root.appendChild(el);
+      scene.tick(performance.now());
+      if (duration) {
+        void el.offsetWidth;
+        el.style.opacity = "1";
+      }
+      const below = alive.current;
+      alive.current = [...below, scene];
+      clearTimeout(cleanup.current);
+      cleanup.current = window.setTimeout(() => {
+        below.forEach((s) => s.dispose());
+        alive.current = alive.current.filter((s) => !below.includes(s));
+      }, duration + 50);
+      current.current = scene;
+      root.dataset.sourceResolution = size;
+      root.dataset.quality = quality;
+      root.dataset.displayedWeather = weather;
+      root.dataset.displayedSeason = sceneAsset(weather, season);
     };
-    const paint = (
-      source: CanvasImageSource,
-      w: number,
-      h: number,
-      alpha = 1,
-    ) => {
-      const scale = Math.max(surface.width / w, surface.height / h);
-      surface.parentElement!.style.setProperty("--picture-width", `${w * scale / surface.width * 100}%`);
-      surface.parentElement!.style.setProperty("--picture-height", `${h * scale / surface.height * 100}%`);
-      ctx.imageSmoothingEnabled = true;
-      ctx.imageSmoothingQuality = "high";
-      ctx.globalAlpha = alpha;
-      ctx.drawImage(
-        source,
-        (surface.width - w * scale) / 2,
-        (surface.height - h * scale) / 2,
-        w * scale,
-        h * scale,
-      );
-      ctx.globalAlpha = 1;
+    make(fade);
+    // About 30 frames a second is plenty for drifting clouds and keeps laptops and TVs cool.
+    const paint = (now: number) => {
+      if (cancelled) return;
+      if (now - lastPaint >= 32) {
+        lastPaint = now;
+        current.current?.tick(now);
+      }
+      if (!reduced.matches) frame = requestAnimationFrame(paint);
     };
-    const asset = sceneAsset(weather, season);
-    void load(asset)
-      .then((img) => {
-        if (cancelled) return;
-        const target = asset !== weather ? lightSeason(img, weather) : img;
-        const snapshot = document.createElement("canvas");
-        snapshot.width = surface.width;
-        snapshot.height = surface.height;
-        snapshot.getContext("2d")!.drawImage(surface, 0, 0);
-        const bounds = surface.getBoundingClientRect();
-        const resolution = sceneResolution(bounds.width, bounds.height, devicePixelRatio, quality);
-        surface.width = resolution.width;
-        surface.height = resolution.height;
-        const duration = visible.current && !qualityChanged ? (automatic ? 12000 : 1800) : 0;
-        const reduced = matchMedia("(prefers-reduced-motion: reduce)").matches;
-        const start = performance.now();
-        const draw = (now: number) => {
-          if (cancelled) return;
-          const p =
-            duration && !reduced ? Math.min(1, (now - start) / duration) : 1;
-          ctx.clearRect(0, 0, surface.width, surface.height);
-          if (p < 1) paint(snapshot, snapshot.width, snapshot.height);
-          paint(
-            target,
-            img.naturalWidth,
-            img.naturalHeight,
-            p * p * (3 - 2 * p),
-          );
-          visible.current = true;
-          if (p < 1) frame = requestAnimationFrame(draw);
-          else {
-            // The previous 4K frame is no longer needed after the crossfade.
-            snapshot.width = 1;
-            snapshot.height = 1;
-            surface.dataset.displayedFit = "cover";
-            surface.dataset.sourceResolution = `${img.naturalWidth}x${img.naturalHeight}`;
-            surface.dataset.quality = quality;
-            surface.dataset.displayedWeather = weather;
-            surface.dataset.displayedSeason = asset;
-          }
-        };
-        draw(start);
-        const resize = () => {
-          const b = surface.getBoundingClientRect();
-          const resolution = sceneResolution(b.width, b.height, devicePixelRatio, quality);
-          if (surface.width === resolution.width && surface.height === resolution.height) return;
-          surface.width = resolution.width;
-          surface.height = resolution.height;
-          ctx.clearRect(0, 0, surface.width, surface.height);
-          paint(target, img.naturalWidth, img.naturalHeight);
-        };
-        if (typeof ResizeObserver !== "undefined") {
-          observer = new ResizeObserver(resize);
-          observer.observe(surface);
-        }
-        resizeListener = resize;
-        window.addEventListener("resize", resize);
-        // Keep decoded images bounded on memory-constrained TV browsers.
-        for (const key of cache.current.keys()) {
-          if (cache.current.size <= 2) break;
-          if (!key.startsWith(`${asset}:`)) cache.current.delete(key);
-        }
-      })
-      .catch(() => {
-        if (!cancelled)
-          onError("Не удалось загрузить пейзаж. Обнови страницу.");
-      });
-    let observer: ResizeObserver | undefined;
-    let resizeListener: (() => void) | undefined;
+    frame = requestAnimationFrame(paint);
+    let resizeTimer = 0;
+    const resize = () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = window.setTimeout(() => {
+        const b = root.getBoundingClientRect();
+        const r = sceneResolution(b.width, b.height, devicePixelRatio, quality);
+        if (`${r.width}x${r.height}` !== size) make(0);
+      }, 150);
+    };
+    const motion = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(paint);
+    };
+    const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : undefined;
+    observer?.observe(root);
+    window.addEventListener("resize", resize);
+    reduced.addEventListener?.("change", motion);
     return () => {
       cancelled = true;
       cancelAnimationFrame(frame);
+      clearTimeout(resizeTimer);
+      // The pending clean-up still runs: a scene that is fading out is removed once it is covered.
       observer?.disconnect();
-      if (resizeListener) window.removeEventListener("resize", resizeListener);
+      window.removeEventListener("resize", resize);
+      reduced.removeEventListener?.("change", motion);
     };
-  }, [weather, season, automatic, onError, quality]);
+  }, [weather, season, automatic, quality]);
+  useEffect(() => () => {
+    clearTimeout(cleanup.current);
+    alive.current.forEach((s) => s.dispose());
+    alive.current = [];
+    current.current = null;
+  }, []);
   return (
-    <div className="landscape-layers" aria-hidden="true">
-      <canvas
-        ref={canvas}
-        className="landscape-canvas"
-        data-selected-weather={weather}
-        data-selected-season={sceneAsset(weather, season)}
-      />
-      <div className="cloud-sky">
-        <div className="cloud-drift cloud-one" />
-        <div className="cloud-drift cloud-two" />
-      </div>
-    </div>
+    <div
+      ref={host}
+      className="landscape-layers"
+      aria-hidden="true"
+      data-displayed-fit="cover"
+      data-selected-weather={weather}
+      data-selected-season={sceneAsset(weather, season)}
+    />
   );
 }
